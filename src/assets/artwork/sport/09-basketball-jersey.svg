@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<g fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M40 14 C42 30 50 36 60 36 C70 36 78 30 80 14 L90 14 C88 30 92 40 98 44 L98 106 L22 106 L22 44 C28 40 32 30 30 14 Z"/>
+<path stroke-width="1.5" d="M36 14 C38 33 48 40 60 40 C72 40 82 33 84 14 M34 14 C36 32 30 44 22 49 M86 14 C84 32 90 44 98 49 M22 100 L98 100"/>
+</g>
+<text x="60" y="84" font-size="30" font-family="Georgia, 'Times New Roman', serif" fill="#111111" text-anchor="middle">14</text>
+</svg>

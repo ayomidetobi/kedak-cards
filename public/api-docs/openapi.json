@@ -1,0 +1,996 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kedak Card API",
+    "version": "1.0.0-demo",
+    "summary": "Backend API for the Kedak Card metal card conversion storefront.",
+    "description": "Demo contract for the API the Kedak Card frontend needs. It mirrors what the app implements today: accounts (email + Google), the finish catalog with stock, the artwork library, artwork uploads, the compatibility check, cart validation, checkout, guest and registered order management, cancellations, refunds, policies and staff operations.\n\n**Status:** design/demo. No server implements this yet — the frontend currently uses local preview stores (`src/services/auth.ts`, `src/stores/orders.ts`).\n\n**Payments:** Stripe is not connected. Orders are created with `payment.status = not-collected`; a payment step will be added later.\n\n**Money:** all amounts are integers in minor units (pence) with an ISO 4217 currency, e.g. `{ \"amount\": 14900, \"currency\": \"GBP\" }` = £149.00.\n\n**Errors:** every error uses RFC 9457 problem details (`application/problem+json`) with a stable machine-readable `code`.\n\n**Business rules (from `src/utils/orderPolicy.ts`):**\n- Cancel: allowed while the order is `awaiting-card`, `card-received` or `assessed` (before conversion). Full refund; a held original card is returned.\n- Refund: requested after confirmed delivery, within **21 days (3 weeks)**. Up to the order total, confirmed after the returned card is inspected.\n- Checkout: every item must be customised and its finish in stock.\n\nSecurity: never send or store PINs, CVVs or full card numbers.",
+    "contact": { "name": "Kedak Card engineering" },
+    "license": { "name": "Proprietary" }
+  },
+  "servers": [
+    { "url": "http://localhost:3000/v1", "description": "Local development" },
+    { "url": "https://api.example.com/v1", "description": "Production (placeholder host)" }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Email/password and Google sign-in. Accounts are optional — guest checkout is always available." },
+    { "name": "Catalog", "description": "Card finishes, prices and stock." },
+    { "name": "Artwork", "description": "The monochrome artwork library (5 categories × 10 designs)." },
+    { "name": "Uploads", "description": "Customer artwork uploads (PNG, JPEG or WebP, up to 5 MB)." },
+    { "name": "Compatibility", "description": "Initial card suitability screen. Never accepts card numbers." },
+    { "name": "Cart", "description": "Server-side validation of a client-side cart before checkout." },
+    { "name": "Orders", "description": "Checkout, order details, cancellation and refund requests — for registered customers and guests." },
+    { "name": "Guest access", "description": "Guests unlock an order with its reference + checkout email and receive a scoped order access token." },
+    { "name": "Account", "description": "Signed-in customer's profile and orders." },
+    { "name": "Policies", "description": "Published refund/cancellation and privacy policies." },
+    { "name": "Operations", "description": "Internal staff endpoints: fulfilment progress and refund processing." }
+  ],
+  "security": [],
+  "paths": {
+    "/auth/signup": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "signUp",
+        "summary": "Create an account with email and password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SignupRequest" },
+              "example": { "fullName": "Alex Morgan", "email": "alex.morgan@example.com", "password": "metal2026card", "acceptTerms": true }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Account created and signed in.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } } },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "logIn",
+        "summary": "Sign in with email and password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" },
+              "example": { "email": "alex.morgan@example.com", "password": "metal2026card" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Signed in.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "signInWithGoogle",
+        "summary": "Sign in or sign up with Google",
+        "description": "Exchange a Google Identity Services ID token (obtained in the browser) for a Kedak session. Creates the account on first use.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GoogleSignInRequest" },
+              "example": { "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ.eyJzdWIiOiIxMjMifQ.signature" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Signed in (existing account).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } } },
+          "201": { "description": "Account created and signed in.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Session" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "logOut",
+        "summary": "End the current session",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Signed out." },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth", "Account"],
+        "operationId": "getCurrentUser",
+        "summary": "Get the signed-in customer",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "The signed-in customer.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/finishes": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "listFinishes",
+        "summary": "List card finishes with price and stock",
+        "responses": {
+          "200": {
+            "description": "All finishes, in display order.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "required": ["data"], "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Finish" } } } },
+                "example": {
+                  "data": [
+                    { "name": "Silver", "price": { "amount": 12900, "currency": "GBP" }, "inStock": true },
+                    { "name": "Black", "price": { "amount": 14900, "currency": "GBP" }, "inStock": true },
+                    { "name": "Gold", "price": { "amount": 17900, "currency": "GBP" }, "inStock": true },
+                    { "name": "Signature", "price": { "amount": 21900, "currency": "GBP" }, "inStock": false }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finishes/{finish}": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "getFinish",
+        "summary": "Get one finish",
+        "parameters": [{ "$ref": "#/components/parameters/FinishPath" }],
+        "responses": {
+          "200": { "description": "The finish.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Finish" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/artwork/categories": {
+      "get": {
+        "tags": ["Artwork"],
+        "operationId": "listArtworkCategories",
+        "summary": "List artwork categories",
+        "responses": {
+          "200": {
+            "description": "Categories in tab order; the first is the default.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "required": ["data"], "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/ArtworkCategorySummary" } } } },
+                "example": { "data": [ { "name": "Sport", "designCount": 10 }, { "name": "Cars", "designCount": 10 }, { "name": "Anime", "designCount": 10 }, { "name": "Love", "designCount": 10 }, { "name": "Nature", "designCount": 10 } ] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/artwork": {
+      "get": {
+        "tags": ["Artwork"],
+        "operationId": "listArtwork",
+        "summary": "List artwork designs",
+        "parameters": [
+          { "name": "category", "in": "query", "description": "Only designs in this category.", "schema": { "$ref": "#/components/schemas/CardCategory" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Designs ordered by category then number.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "required": ["data"], "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/CardDesign" } } } },
+                "example": { "data": [ { "id": "sport-01", "name": "Striped Club Shield", "category": "Sport", "number": "01", "artworkUrl": "https://cdn.example.com/artwork/sport/01-striped-club-shield.svg" } ] }
+              }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/artwork/{designId}": {
+      "get": {
+        "tags": ["Artwork"],
+        "operationId": "getArtwork",
+        "summary": "Get one design",
+        "parameters": [{ "name": "designId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^(sport|cars|anime|love|nature)-\\d{2}$" }, "example": "nature-01" }],
+        "responses": {
+          "200": { "description": "The design.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CardDesign" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/uploads/artwork": {
+      "post": {
+        "tags": ["Uploads"],
+        "operationId": "uploadArtwork",
+        "summary": "Upload customer artwork",
+        "description": "Upload one image. For per-card artwork, upload once per card. Images are only used for the customer's order. How the image sits on the card is chosen separately (`uploadOrientation`, `uploadDisplay`) in the customisation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": { "file": { "type": "string", "contentMediaType": "image/*", "description": "PNG, JPEG or WebP, max 5 MB (5242880 bytes)." } }
+              },
+              "encoding": { "file": { "contentType": "image/png, image/jpeg, image/webp" } }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Stored.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UploadedArtwork" } } } },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "415": { "$ref": "#/components/responses/UnsupportedMediaType" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/compatibility-checks": {
+      "post": {
+        "tags": ["Compatibility"],
+        "operationId": "checkCompatibility",
+        "summary": "Run the initial compatibility screen",
+        "description": "Non-sensitive questions only. A chip card goes to preliminary assessment; chipless or unsure answers go to specialist review. Not a guarantee of compatibility or issuer approval.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CompatibilityAnswers" },
+              "example": { "country": "United Kingdom", "network": "Visa / Mastercard", "cardType": "Personal debit card", "hasChip": true, "acknowledged": true }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CompatibilityResult" },
+                "examples": {
+                  "eligible": { "value": { "outcome": "eligible-for-assessment", "message": "Your answers suggest your card can be assessed for conversion.", "answers": { "country": "United Kingdom", "network": "Visa / Mastercard", "cardType": "Personal debit card", "hasChip": true, "acknowledged": true } } },
+                  "specialist": { "value": { "outcome": "specialist-review", "message": "Your card needs a closer look before you order.", "answers": { "country": "United Kingdom", "network": "Other / Not sure", "cardType": "Other / Not sure", "hasChip": false, "acknowledged": true } } }
+                }
+              }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/cart/validate": {
+      "post": {
+        "tags": ["Cart"],
+        "operationId": "validateCart",
+        "summary": "Validate a cart and price it",
+        "description": "The cart lives in the browser. Call this before showing checkout: it re-prices items and reports blocking issues. `canCheckout` is true only when every item is customised and its finish is in stock.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CartValidationRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Pricing and per-item issues.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CartValidationResult" },
+                "example": {
+                  "canCheckout": false,
+                  "subtotal": { "amount": 36800, "currency": "GBP" },
+                  "delivery": { "amount": 800, "currency": "GBP" },
+                  "total": { "amount": 37600, "currency": "GBP" },
+                  "items": [
+                    { "index": 0, "finish": "Black", "quantity": 1, "unitPrice": { "amount": 14900, "currency": "GBP" }, "issues": [] },
+                    { "index": 1, "finish": "Signature", "quantity": 1, "unitPrice": { "amount": 21900, "currency": "GBP" }, "issues": [ { "code": "finish_out_of_stock", "message": "Signature is out of stock. Switch to another finish or remove this item." } ] }
+                  ]
+                }
+              }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/orders": {
+      "post": {
+        "tags": ["Orders"],
+        "operationId": "placeOrder",
+        "summary": "Place an order (checkout)",
+        "description": "Works for guests and signed-in customers. If a bearer token is sent, the order is also linked to that account. The response includes an `orderAccessToken` so a guest can manage the order straight away.\n\nPayment: Stripe isn't connected yet, so orders are created with `payment.status = not-collected`.",
+        "security": [{}, { "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PlaceOrderRequest" },
+              "example": {
+                "contact": { "email": "alex@example.com", "fullName": "Alex Morgan", "phone": { "countryCode": "GB", "number": "020 7946 0958" } },
+                "deliveryAddress": { "address": "24 Willow Lane", "city": "Birmingham", "postcode": "B1 1AA", "country": "United Kingdom" },
+                "items": [
+                  {
+                    "finish": "Black",
+                    "quantity": 1,
+                    "customization": { "customizationMode": "preset", "category": "Sport", "designId": "sport-01", "engravingStyle": "name", "holderName": "ALEX MORGAN", "uploadedArtworkIds": [], "artworkAssignment": "shared", "uploadOrientation": "landscape", "uploadDisplay": "default" }
+                  }
+                ],
+                "acknowledgement": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order created.",
+            "headers": { "Location": { "description": "URL of the new order.", "schema": { "type": "string" } } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlacedOrder" } } }
+          },
+          "409": { "$ref": "#/components/responses/CheckoutBlocked" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/orders/lookup": {
+      "post": {
+        "tags": ["Guest access"],
+        "operationId": "lookupOrder",
+        "summary": "Find an order with reference + email (guests)",
+        "description": "Both values must match. To avoid revealing which orders exist, a wrong reference and a wrong email return the same 404. Rate limited.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/OrderLookupRequest" },
+              "example": { "reference": "KD-2051", "email": "alex.morgan@example.com" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Order found; returns the order and a scoped access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderAccessGrant" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "get": {
+        "tags": ["Orders"],
+        "operationId": "getOrder",
+        "summary": "Get an order",
+        "description": "Allowed for the owning account (bearer token) or a guest holding this order's access token.",
+        "security": [{ "bearerAuth": [] }, { "orderAccessToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": { "description": "The order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders/{orderId}/eligibility": {
+      "get": {
+        "tags": ["Orders"],
+        "operationId": "getOrderEligibility",
+        "summary": "What can the customer do with this order now?",
+        "description": "Server-side source of truth for the Cancel / Request refund actions and their explanations.",
+        "security": [{ "bearerAuth": [] }, { "orderAccessToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "responses": {
+          "200": {
+            "description": "Eligibility for each action.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrderEligibility" },
+                "example": {
+                  "cancellation": { "allowed": false, "message": "Your card is already being converted, so this order can’t be cancelled. If something’s wrong once it arrives, you can request a refund." },
+                  "refund": { "allowed": false, "message": "You can request a refund once your card has been delivered." },
+                  "refundDeadline": null
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders/{orderId}/cancellation": {
+      "post": {
+        "tags": ["Orders"],
+        "operationId": "cancelOrder",
+        "summary": "Cancel an order",
+        "description": "Allowed while the order is `awaiting-card`, `card-received` or `assessed`. Sets status to `cancelled`, starts a full refund (`refund.state = pending`) and, if we hold the original card, schedules its return.",
+        "security": [{ "bearerAuth": [] }, { "orderAccessToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CancelOrderRequest" },
+              "example": { "reason": "I ordered by mistake", "details": "" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Cancelled.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/NotCancellable" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/orders/{orderId}/refund-requests": {
+      "post": {
+        "tags": ["Orders"],
+        "operationId": "requestRefund",
+        "summary": "Request a refund after delivery",
+        "description": "Allowed for `delivered` orders within 21 days (3 weeks) of confirmed delivery. Sets status to `refund-requested` (`refund.state = requested`). We email return instructions; the refund (up to the order total) is confirmed after inspection.",
+        "security": [{ "bearerAuth": [] }, { "orderAccessToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefundRequest" },
+              "example": { "reason": "The card arrived damaged", "details": "Bent corner on arrival." }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Refund requested.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/NotRefundable" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/account/orders": {
+      "get": {
+        "tags": ["Account"],
+        "operationId": "listMyOrders",
+        "summary": "List the signed-in customer's orders",
+        "description": "Orders placed while signed in or with the account's email, newest first.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "status", "in": "query", "description": "Only orders with this status.", "schema": { "$ref": "#/components/schemas/OrderStatus" } },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "description": "A page of orders.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderSummaryPage" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/policies/{slug}": {
+      "get": {
+        "tags": ["Policies"],
+        "operationId": "getPolicy",
+        "summary": "Get a published policy",
+        "parameters": [{ "name": "slug", "in": "path", "required": true, "schema": { "type": "string", "enum": ["refunds", "privacy"] } }],
+        "responses": {
+          "200": { "description": "The policy content.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Policy" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/ops/orders": {
+      "get": {
+        "tags": ["Operations"],
+        "operationId": "listOrdersForOps",
+        "summary": "List orders (staff)",
+        "security": [{ "staffAuth": [] }],
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "$ref": "#/components/schemas/OrderStatus" } },
+          { "name": "refundState", "in": "query", "description": "e.g. `requested` to find refunds awaiting review.", "schema": { "$ref": "#/components/schemas/RefundState" } },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": { "description": "A page of orders.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderSummaryPage" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/ops/orders/{orderId}/status": {
+      "post": {
+        "tags": ["Operations"],
+        "operationId": "advanceOrderStatus",
+        "summary": "Move an order to its next fulfilment stage (staff)",
+        "description": "Allowed transitions: awaiting-card → card-received → assessed → in-production → dispatched → delivered. Setting `delivered` records `deliveredAt` (confirmed delivery), which starts the 21-day refund window.",
+        "security": [{ "staffAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdvanceStatusRequest" },
+              "example": { "status": "delivered", "trackingNumber": "TRK123456789GB", "note": "Courier confirmed delivery." }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/InvalidTransition" }
+        }
+      }
+    },
+    "/ops/orders/{orderId}/refund": {
+      "post": {
+        "tags": ["Operations"],
+        "operationId": "decideRefund",
+        "summary": "Approve, decline or complete a refund (staff)",
+        "description": "`approve` (after inspection, optionally a partial amount up to the order total) → `complete` once paid out sets status `refunded`. `decline` returns the order to `delivered` with an explanation.",
+        "security": [{ "staffAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefundDecisionRequest" },
+              "example": { "action": "approve", "amount": { "amount": 13700, "currency": "GBP" }, "note": "Damage confirmed on inspection." }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/InvalidTransition" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Customer session token from /auth/login, /auth/signup or /auth/google." },
+      "staffAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Staff session token with the `ops` role." },
+      "orderAccessToken": { "type": "apiKey", "in": "header", "name": "X-Order-Access-Token", "description": "Guest token scoped to a single order, from /orders/lookup or the checkout response." }
+    },
+    "parameters": {
+      "OrderId": { "name": "orderId", "in": "path", "required": true, "description": "Order reference.", "schema": { "$ref": "#/components/schemas/OrderId" } },
+      "FinishPath": { "name": "finish", "in": "path", "required": true, "schema": { "$ref": "#/components/schemas/CardFinish" } },
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": false, "description": "Unique per attempt; retries with the same key don't repeat the action.", "schema": { "type": "string", "format": "uuid" } },
+      "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
+      "Cursor": { "name": "cursor", "in": "query", "description": "Opaque cursor from a previous page's `nextCursor`.", "schema": { "type": "string" } }
+    },
+    "responses": {
+      "Unauthorized": { "description": "Missing or invalid credentials.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/unauthorized", "title": "Unauthorized", "status": 401, "code": "unauthorized", "detail": "Sign in or use your order access token." } } } },
+      "Forbidden": { "description": "Authenticated but not allowed.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "NotFound": { "description": "Not found (or not visible to this caller).", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/not-found", "title": "Not found", "status": 404, "code": "order_not_found", "detail": "We couldn’t find an order with those details." } } } },
+      "Conflict": { "description": "Conflicts with existing data (e.g. email already registered).", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/email-taken", "title": "Email already registered", "status": 409, "code": "email_taken", "detail": "An account with this email already exists. Log in instead." } } } },
+      "CheckoutBlocked": { "description": "The cart can't be checked out.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/checkout-blocked", "title": "Checkout blocked", "status": 409, "code": "checkout_blocked", "detail": "Some items are out of stock. Switch them to another finish or remove them before checkout.", "errors": [ { "pointer": "/items/1/finish", "code": "finish_out_of_stock", "message": "Signature is out of stock." } ] } } } },
+      "NotCancellable": { "description": "The order is past the cancellation point.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/not-cancellable", "title": "Order can’t be cancelled", "status": 409, "code": "order_not_cancellable", "detail": "Your card is already being converted, so this order can’t be cancelled. If something’s wrong once it arrives, you can request a refund." } } } },
+      "NotRefundable": { "description": "A refund can't be requested now.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/refund-window-closed", "title": "Refund window closed", "status": 409, "code": "refund_window_closed", "detail": "The 21-day refund window ended on 12 Dec 2026." } } } },
+      "InvalidTransition": { "description": "Status change not allowed from the current state.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "ValidationError": { "description": "Request failed validation.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/validation", "title": "Validation failed", "status": 422, "code": "validation_failed", "errors": [ { "pointer": "/password", "code": "password_too_weak", "message": "Use at least 8 characters, including a letter and a number." } ] } } } },
+      "PayloadTooLarge": { "description": "File larger than 5 MB.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/file-too-large", "title": "File too large", "status": 413, "code": "file_too_large", "detail": "The image must be 5 MB or smaller." } } } },
+      "UnsupportedMediaType": { "description": "Not a PNG, JPEG or WebP image.", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" }, "example": { "type": "https://api.example.com/problems/unsupported-file", "title": "Unsupported file type", "status": 415, "code": "unsupported_file_type", "detail": "Choose a PNG, JPEG or WebP image." } } } },
+      "TooManyRequests": { "description": "Rate limited.", "headers": { "Retry-After": { "description": "Seconds to wait.", "schema": { "type": "integer" } } }, "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+    },
+    "schemas": {
+      "Money": {
+        "type": "object",
+        "description": "Amount in minor units (pence).",
+        "required": ["amount", "currency"],
+        "properties": { "amount": { "type": "integer", "minimum": 0, "examples": [14900] }, "currency": { "type": "string", "enum": ["GBP"] } }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 problem details.",
+        "required": ["type", "title", "status", "code"],
+        "properties": {
+          "type": { "type": "string", "format": "uri" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "code": { "type": "string", "description": "Stable machine-readable error code." },
+          "detail": { "type": "string", "description": "Customer-safe explanation." },
+          "errors": { "type": "array", "items": { "type": "object", "required": ["pointer", "message"], "properties": { "pointer": { "type": "string", "description": "JSON Pointer into the request body." }, "code": { "type": "string" }, "message": { "type": "string" } } } }
+        }
+      },
+      "AuthProvider": { "type": "string", "enum": ["email", "google"] },
+      "User": {
+        "type": "object",
+        "required": ["id", "name", "email", "provider"],
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "email": { "type": "string", "format": "email" }, "provider": { "$ref": "#/components/schemas/AuthProvider" } },
+        "example": { "id": "usr_7Hk2", "name": "Alex Morgan", "email": "alex.morgan@example.com", "provider": "email" }
+      },
+      "Session": {
+        "type": "object",
+        "required": ["user", "accessToken", "expiresAt"],
+        "properties": { "user": { "$ref": "#/components/schemas/User" }, "accessToken": { "type": "string" }, "expiresAt": { "type": "string", "format": "date-time" } }
+      },
+      "SignupRequest": {
+        "type": "object",
+        "required": ["fullName", "email", "password", "acceptTerms"],
+        "properties": {
+          "fullName": { "type": "string", "minLength": 2 },
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8, "pattern": "^(?=.*[A-Za-z])(?=.*\\d).{8,}$", "description": "At least 8 characters, including a letter and a number.", "writeOnly": true },
+          "acceptTerms": { "type": "boolean", "const": true }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": { "email": { "type": "string", "format": "email" }, "password": { "type": "string", "minLength": 1, "writeOnly": true } }
+      },
+      "GoogleSignInRequest": {
+        "type": "object",
+        "required": ["idToken"],
+        "properties": { "idToken": { "type": "string", "description": "Google Identity Services credential (JWT)." } }
+      },
+      "CardFinish": { "type": "string", "enum": ["Silver", "Black", "Gold", "Signature"] },
+      "CardCategory": { "type": "string", "enum": ["Sport", "Cars", "Anime", "Love", "Nature"] },
+      "EngravingStyle": { "type": "string", "enum": ["name", "monogram"] },
+      "CustomizationMode": { "type": "string", "enum": ["preset", "custom"], "description": "`preset` = library artwork; `custom` = customer upload." },
+      "ArtworkAssignment": { "type": "string", "enum": ["shared", "per-card"], "description": "For quantity > 1: one image for all cards, or one per card." },
+      "UploadOrientation": { "type": "string", "enum": ["landscape", "portrait"], "description": "`landscape` = as uploaded; `portrait` = turned sideways on the card." },
+      "UploadDisplay": { "type": "string", "enum": ["default", "cover"], "description": "`default` = artwork spot on the right; `cover` = fills the whole card." },
+      "Finish": {
+        "type": "object",
+        "required": ["name", "price", "inStock"],
+        "properties": { "name": { "$ref": "#/components/schemas/CardFinish" }, "price": { "$ref": "#/components/schemas/Money" }, "inStock": { "type": "boolean", "description": "Out-of-stock finishes can't be added to the cart or checked out." } }
+      },
+      "ArtworkCategorySummary": {
+        "type": "object",
+        "required": ["name", "designCount"],
+        "properties": { "name": { "$ref": "#/components/schemas/CardCategory" }, "designCount": { "type": "integer", "minimum": 0 } }
+      },
+      "CardDesign": {
+        "type": "object",
+        "required": ["id", "name", "category", "number", "artworkUrl"],
+        "properties": {
+          "id": { "type": "string", "examples": ["sport-01"] },
+          "name": { "type": "string", "examples": ["Striped Club Shield"] },
+          "category": { "$ref": "#/components/schemas/CardCategory" },
+          "number": { "type": "string", "pattern": "^\\d{2}$" },
+          "artworkUrl": { "type": "string", "format": "uri", "description": "Monochrome SVG (120×120, transparent, #111111 only)." }
+        }
+      },
+      "UploadedArtwork": {
+        "type": "object",
+        "required": ["id", "name", "size", "type", "url"],
+        "properties": {
+          "id": { "type": "string", "examples": ["upl_9fQ2"] },
+          "name": { "type": "string", "examples": ["holiday-photo.png"] },
+          "size": { "type": "integer", "maximum": 5242880 },
+          "type": { "type": "string", "enum": ["image/png", "image/jpeg", "image/webp"] },
+          "url": { "type": "string", "format": "uri" }
+        }
+      },
+      "CardCustomizationInput": {
+        "type": "object",
+        "description": "What the customer chose in the customiser. Price is set by the server from the finish.",
+        "required": ["customizationMode", "engravingStyle", "holderName", "artworkAssignment", "uploadOrientation", "uploadDisplay"],
+        "properties": {
+          "customizationMode": { "$ref": "#/components/schemas/CustomizationMode" },
+          "category": { "$ref": "#/components/schemas/CardCategory" },
+          "designId": { "type": "string", "description": "Required when customizationMode is preset." },
+          "engravingStyle": { "$ref": "#/components/schemas/EngravingStyle" },
+          "holderName": { "type": "string", "maxLength": 22 },
+          "uploadedArtworkIds": { "type": "array", "items": { "type": "string" }, "description": "Required when customizationMode is custom. For per-card assignment, exactly one per card." },
+          "artworkAssignment": { "$ref": "#/components/schemas/ArtworkAssignment" },
+          "uploadOrientation": { "$ref": "#/components/schemas/UploadOrientation" },
+          "uploadDisplay": { "$ref": "#/components/schemas/UploadDisplay" }
+        }
+      },
+      "CardCustomization": {
+        "allOf": [
+          { "$ref": "#/components/schemas/CardCustomizationInput" },
+          {
+            "type": "object",
+            "required": ["finish", "price"],
+            "properties": {
+              "finish": { "$ref": "#/components/schemas/CardFinish" },
+              "price": { "$ref": "#/components/schemas/Money" },
+              "uploadedArtworks": { "type": "array", "items": { "$ref": "#/components/schemas/UploadedArtwork" } }
+            }
+          }
+        ]
+      },
+      "CompatibilityAnswers": {
+        "type": "object",
+        "required": ["country", "network", "cardType", "hasChip", "acknowledged"],
+        "properties": {
+          "country": { "type": "string", "minLength": 1 },
+          "network": { "type": "string", "enum": ["Visa / Mastercard", "American Express", "Other / Not sure"] },
+          "cardType": { "type": "string", "enum": ["Personal debit card", "Personal credit card", "Business card", "Other / Not sure"] },
+          "hasChip": { "type": "boolean" },
+          "acknowledged": { "type": "boolean", "const": true, "description": "Customer understands conversion may affect card functions and issuer terms." }
+        }
+      },
+      "CompatibilityResult": {
+        "type": "object",
+        "required": ["outcome", "message", "answers"],
+        "properties": {
+          "outcome": { "type": "string", "enum": ["eligible-for-assessment", "specialist-review"] },
+          "message": { "type": "string" },
+          "answers": { "$ref": "#/components/schemas/CompatibilityAnswers" }
+        }
+      },
+      "CartItemInput": {
+        "type": "object",
+        "required": ["finish", "quantity"],
+        "properties": {
+          "finish": { "$ref": "#/components/schemas/CardFinish" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "customization": { "oneOf": [ { "$ref": "#/components/schemas/CardCustomizationInput" }, { "type": "null" } ], "description": "null = not customised yet (blocks checkout)." }
+        }
+      },
+      "CartValidationRequest": {
+        "type": "object",
+        "required": ["items"],
+        "properties": { "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/CartItemInput" } } }
+      },
+      "CartIssue": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "enum": ["not_customised", "finish_out_of_stock", "artwork_count_mismatch", "unknown_design"] },
+          "message": { "type": "string" }
+        }
+      },
+      "CartValidationResult": {
+        "type": "object",
+        "required": ["canCheckout", "subtotal", "delivery", "total", "items"],
+        "properties": {
+          "canCheckout": { "type": "boolean", "description": "True only when every item is customised and in stock." },
+          "subtotal": { "$ref": "#/components/schemas/Money" },
+          "delivery": { "$ref": "#/components/schemas/Money", "description": "Tracked return delivery (currently £8)." },
+          "total": { "$ref": "#/components/schemas/Money" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["index", "finish", "quantity", "unitPrice", "issues"],
+              "properties": {
+                "index": { "type": "integer" },
+                "finish": { "$ref": "#/components/schemas/CardFinish" },
+                "quantity": { "type": "integer" },
+                "unitPrice": { "$ref": "#/components/schemas/Money" },
+                "issues": { "type": "array", "items": { "$ref": "#/components/schemas/CartIssue" } }
+              }
+            }
+          }
+        }
+      },
+      "Phone": {
+        "type": "object",
+        "required": ["countryCode", "number"],
+        "properties": { "countryCode": { "type": "string", "description": "ISO 3166-1 alpha-2 calling region.", "examples": ["GB"] }, "number": { "type": "string" } }
+      },
+      "Contact": {
+        "type": "object",
+        "required": ["email", "fullName", "phone"],
+        "properties": { "email": { "type": "string", "format": "email" }, "fullName": { "type": "string", "minLength": 2 }, "phone": { "$ref": "#/components/schemas/Phone" } }
+      },
+      "DeliveryAddress": {
+        "type": "object",
+        "required": ["address", "city", "postcode", "country"],
+        "properties": { "address": { "type": "string", "minLength": 3 }, "city": { "type": "string", "minLength": 2 }, "postcode": { "type": "string", "minLength": 3 }, "country": { "type": "string" } }
+      },
+      "PlaceOrderRequest": {
+        "type": "object",
+        "required": ["contact", "deliveryAddress", "items", "acknowledgement"],
+        "properties": {
+          "contact": { "$ref": "#/components/schemas/Contact" },
+          "deliveryAddress": { "$ref": "#/components/schemas/DeliveryAddress" },
+          "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/CartItemInput" } },
+          "acknowledgement": { "type": "boolean", "const": true, "description": "Customer owns the card and understands the conversion risks." }
+        }
+      },
+      "OrderId": { "type": "string", "pattern": "^KD-\\d{4}$", "examples": ["KD-2051"] },
+      "OrderStatus": {
+        "type": "string",
+        "enum": ["awaiting-card", "card-received", "assessed", "in-production", "dispatched", "delivered", "cancelled", "refund-requested", "refunded"],
+        "description": "Happy path: awaiting-card → card-received → assessed → in-production → dispatched → delivered. End states: cancelled, refund-requested → refunded."
+      },
+      "RefundState": { "type": "string", "enum": ["pending", "requested", "approved", "completed", "declined"] },
+      "CancelReason": { "type": "string", "enum": ["I changed my mind", "I ordered by mistake", "My card isn’t compatible", "It’s taking too long", "Something else"] },
+      "RefundReason": { "type": "string", "enum": ["The card doesn’t work for payments", "There’s a problem with the engraving", "The card arrived damaged", "It isn’t what I expected", "Something else"] },
+      "OrderLine": {
+        "type": "object",
+        "required": ["finish", "quantity", "unitPrice", "holderName", "designName"],
+        "properties": {
+          "finish": { "$ref": "#/components/schemas/CardFinish" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "unitPrice": { "$ref": "#/components/schemas/Money" },
+          "holderName": { "type": "string" },
+          "designName": { "type": "string", "examples": ["Striped Club Shield", "Your own artwork"] },
+          "customization": { "oneOf": [ { "$ref": "#/components/schemas/CardCustomization" }, { "type": "null" } ] }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "enum": ["not-collected", "paid", "refunded", "partially-refunded"], "description": "`not-collected` until Stripe is connected." },
+          "provider": { "type": ["string", "null"], "enum": ["stripe", null] }
+        }
+      },
+      "OrderCancellation": {
+        "type": "object",
+        "required": ["reason", "details", "cancelledAt", "returnOriginalCard"],
+        "properties": {
+          "reason": { "$ref": "#/components/schemas/CancelReason" },
+          "details": { "type": "string", "maxLength": 500 },
+          "cancelledAt": { "type": "string", "format": "date-time" },
+          "returnOriginalCard": { "type": "boolean", "description": "True when we held the customer's original card and will send it back." }
+        }
+      },
+      "OrderRefund": {
+        "type": "object",
+        "required": ["amount", "state", "reason", "details", "requestedAt"],
+        "properties": {
+          "amount": { "$ref": "#/components/schemas/Money", "description": "Full amount for cancellations; maximum for post-delivery requests until approved." },
+          "state": { "$ref": "#/components/schemas/RefundState" },
+          "reason": { "type": "string" },
+          "details": { "type": "string", "maxLength": 500 },
+          "requestedAt": { "type": "string", "format": "date-time" },
+          "decisionNote": { "type": "string" }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "required": ["id", "email", "customerName", "placedAt", "status", "lines", "subtotal", "delivery", "total", "payment"],
+        "properties": {
+          "id": { "$ref": "#/components/schemas/OrderId" },
+          "email": { "type": "string", "format": "email" },
+          "customerName": { "type": "string" },
+          "placedAt": { "type": "string", "format": "date-time" },
+          "deliveredAt": { "type": ["string", "null"], "format": "date-time", "description": "Confirmed delivery. Starts the 21-day refund window." },
+          "refundDeadline": { "type": ["string", "null"], "format": "date-time", "readOnly": true },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "lines": { "type": "array", "items": { "$ref": "#/components/schemas/OrderLine" } },
+          "subtotal": { "$ref": "#/components/schemas/Money" },
+          "delivery": { "$ref": "#/components/schemas/Money" },
+          "total": { "$ref": "#/components/schemas/Money" },
+          "payment": { "$ref": "#/components/schemas/Payment" },
+          "cancellation": { "$ref": "#/components/schemas/OrderCancellation" },
+          "refund": { "$ref": "#/components/schemas/OrderRefund" }
+        },
+        "example": {
+          "id": "KD-2051",
+          "email": "alex.morgan@example.com",
+          "customerName": "Alex Morgan",
+          "placedAt": "2026-11-19T10:12:00Z",
+          "deliveredAt": null,
+          "refundDeadline": null,
+          "status": "awaiting-card",
+          "lines": [ { "finish": "Gold", "quantity": 1, "unitPrice": { "amount": 17900, "currency": "GBP" }, "holderName": "ALEX MORGAN", "designName": "Championship Trophy", "customization": null } ],
+          "subtotal": { "amount": 17900, "currency": "GBP" },
+          "delivery": { "amount": 800, "currency": "GBP" },
+          "total": { "amount": 18700, "currency": "GBP" },
+          "payment": { "status": "not-collected", "provider": null }
+        }
+      },
+      "OrderSummary": {
+        "type": "object",
+        "required": ["id", "placedAt", "status", "total", "itemsSummary"],
+        "properties": {
+          "id": { "$ref": "#/components/schemas/OrderId" },
+          "placedAt": { "type": "string", "format": "date-time" },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "total": { "$ref": "#/components/schemas/Money" },
+          "itemsSummary": { "type": "string", "examples": ["Gold × 1"] }
+        }
+      },
+      "OrderSummaryPage": {
+        "type": "object",
+        "required": ["data", "nextCursor"],
+        "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/OrderSummary" } }, "nextCursor": { "type": ["string", "null"] } }
+      },
+      "PlacedOrder": {
+        "type": "object",
+        "required": ["order", "orderAccessToken"],
+        "properties": {
+          "order": { "$ref": "#/components/schemas/Order" },
+          "orderAccessToken": { "type": "string", "description": "Lets the customer (including guests) manage this order. Send as X-Order-Access-Token." }
+        }
+      },
+      "OrderLookupRequest": {
+        "type": "object",
+        "required": ["reference", "email"],
+        "properties": {
+          "reference": { "type": "string", "description": "Case and spaces are ignored (\" kd-2051 \" matches KD-2051)." },
+          "email": { "type": "string", "format": "email", "description": "Email used at checkout (case-insensitive)." }
+        }
+      },
+      "OrderAccessGrant": {
+        "type": "object",
+        "required": ["order", "orderAccessToken", "expiresAt"],
+        "properties": {
+          "order": { "$ref": "#/components/schemas/Order" },
+          "orderAccessToken": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Eligibility": {
+        "type": "object",
+        "required": ["allowed", "message"],
+        "properties": { "allowed": { "type": "boolean" }, "message": { "type": "string", "description": "Customer-facing explanation when not allowed; empty when allowed." } }
+      },
+      "OrderEligibility": {
+        "type": "object",
+        "required": ["cancellation", "refund", "refundDeadline"],
+        "properties": {
+          "cancellation": { "$ref": "#/components/schemas/Eligibility" },
+          "refund": { "$ref": "#/components/schemas/Eligibility" },
+          "refundDeadline": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "CancelOrderRequest": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": { "$ref": "#/components/schemas/CancelReason" },
+          "details": { "type": "string", "maxLength": 500, "default": "", "description": "Required (min 3 characters) when reason is \"Something else\"." }
+        }
+      },
+      "RefundRequest": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": { "$ref": "#/components/schemas/RefundReason" },
+          "details": { "type": "string", "maxLength": 500, "default": "", "description": "Required (min 3 characters) when reason is \"Something else\"." }
+        }
+      },
+      "AdvanceStatusRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "enum": ["card-received", "assessed", "in-production", "dispatched", "delivered"] },
+          "trackingNumber": { "type": "string", "description": "Required when status is dispatched." },
+          "note": { "type": "string", "maxLength": 500 }
+        }
+      },
+      "RefundDecisionRequest": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["approve", "decline", "complete"] },
+          "amount": { "$ref": "#/components/schemas/Money", "description": "approve only: refund amount, up to the order total." },
+          "note": { "type": "string", "maxLength": 500, "description": "Required for decline; shown to the customer." }
+        }
+      },
+      "PolicySection": {
+        "type": "object",
+        "required": ["id", "heading"],
+        "properties": {
+          "id": { "type": "string" },
+          "heading": { "type": "string" },
+          "paragraphs": { "type": "array", "items": { "type": "string" } },
+          "bullets": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "required": ["slug", "title", "summary", "lastUpdated", "sections"],
+        "properties": {
+          "slug": { "type": "string", "enum": ["refunds", "privacy"] },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "lastUpdated": { "type": "string", "format": "date" },
+          "sections": { "type": "array", "items": { "$ref": "#/components/schemas/PolicySection" } }
+        }
+      }
+    }
+  }
+}

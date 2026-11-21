@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<g fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="60" cy="60" r="47"/>
+<circle cx="60" cy="60" r="42" stroke-width="1.5"/>
+<path d="M52.24 86.98 A30 30 0 0 1 30.46 52.79 M67.76 86.98 A30 30 0 0 0 89.54 52.79" stroke-width="1.5"/>
+<g fill="#111111" stroke-width="1.5">
+<ellipse cx="51.46" cy="89.88" rx="5.2" ry="2.1" transform="rotate(165 51.46 89.88)"/>
+<ellipse cx="68.54" cy="89.88" rx="5.2" ry="2.1" transform="rotate(15 68.54 89.88)"/>
+<ellipse cx="49.45" cy="82.85" rx="5.2" ry="2.1" transform="rotate(233 49.45 82.85)"/>
+<ellipse cx="70.55" cy="82.85" rx="5.2" ry="2.1" transform="rotate(-53 70.55 82.85)"/>
+<ellipse cx="42.51" cy="85.99" rx="5.2" ry="2.1" transform="rotate(182 42.51 85.99)"/>
+<ellipse cx="77.49" cy="85.99" rx="5.2" ry="2.1" transform="rotate(-2 77.49 85.99)"/>
+<ellipse cx="42.64" cy="78.68" rx="5.2" ry="2.1" transform="rotate(250 42.64 78.68)"/>
+<ellipse cx="77.36" cy="78.68" rx="5.2" ry="2.1" transform="rotate(-70 77.36 78.68)"/>
+<ellipse cx="35.09" cy="79.65" rx="5.2" ry="2.1" transform="rotate(199 35.09 79.65)"/>
+<ellipse cx="84.91" cy="79.65" rx="5.2" ry="2.1" transform="rotate(-19 84.91 79.65)"/>
+<ellipse cx="37.36" cy="72.71" rx="5.2" ry="2.1" transform="rotate(267 37.36 72.71)"/>
+<ellipse cx="82.64" cy="72.71" rx="5.2" ry="2.1" transform="rotate(-87 82.64 72.71)"/>
+<ellipse cx="29.85" cy="71.42" rx="5.2" ry="2.1" transform="rotate(216 29.85 71.42)"/>
+<ellipse cx="90.15" cy="71.42" rx="5.2" ry="2.1" transform="rotate(-36 90.15 71.42)"/>
+<ellipse cx="34.05" cy="65.44" rx="5.2" ry="2.1" transform="rotate(284 34.05 65.44)"/>
+<ellipse cx="85.95" cy="65.44" rx="5.2" ry="2.1" transform="rotate(-104 85.95 65.44)"/>
+<ellipse cx="27.25" cy="62.02" rx="5.2" ry="2.1" transform="rotate(233 27.25 62.02)"/>
+<ellipse cx="92.75" cy="62.02" rx="5.2" ry="2.1" transform="rotate(-53 92.75 62.02)"/>
+<ellipse cx="33" cy="57.53" rx="5.2" ry="2.1" transform="rotate(301 33 57.53)"/>
+<ellipse cx="87" cy="57.53" rx="5.2" ry="2.1" transform="rotate(-121 87 57.53)"/>
+<ellipse cx="27.5" cy="52.27" rx="5.2" ry="2.1" transform="rotate(250 27.5 52.27)"/>
+<ellipse cx="92.5" cy="52.27" rx="5.2" ry="2.1" transform="rotate(-70 92.5 52.27)"/>
+<ellipse cx="34.32" cy="49.66" rx="5.2" ry="2.1" transform="rotate(318 34.32 49.66)"/>
+<ellipse cx="85.68" cy="49.66" rx="5.2" ry="2.1" transform="rotate(-138 85.68 49.66)"/>
+<ellipse cx="32.38" cy="46.28" rx="5.2" ry="2.1" transform="rotate(293 32.38 46.28)"/>
+<ellipse cx="87.62" cy="46.28" rx="5.2" ry="2.1" transform="rotate(-113 87.62 46.28)"/>
+</g>
+<circle cx="60" cy="54" r="16"/>
+<path fill="#111111" stroke-width="1.5" d="M60 48.5 L65.23 52.3 L63.23 58.45 L56.77 58.45 L54.77 52.3 Z"/>
+<path stroke-width="1.5" d="M60 48.5 L60 38 M65.23 52.3 L75.22 49.06 M63.23 58.45 L69.4 66.94 M56.77 58.45 L50.6 66.94 M54.77 52.3 L44.78 49.06"/>
+<path fill="#111111" stroke-width="1.5" d="M60 90.5 L61.11 93.47 L64.28 93.61 L61.8 95.58 L62.65 98.64 L60 96.89 L57.35 98.64 L58.2 95.58 L55.72 93.61 L58.89 93.47 Z"/>
+</g>
+<text x="60" y="32.5" font-size="9" letter-spacing="1" font-family="Georgia, 'Times New Roman', serif" fill="#111111" text-anchor="middle">EST. 1987</text>
+</svg>

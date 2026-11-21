@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kedak Card API · Swagger</title>
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #fafafa;
+      }
+      .kedak-api-banner {
+        padding: 12px 20px;
+        background: #171719;
+        color: #f2f2f5;
+        font:
+          14px/1.5 Inter,
+          system-ui,
+          sans-serif;
+      }
+      .kedak-api-banner strong {
+        color: #f0b08c;
+      }
+      .swagger-ui .topbar {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="kedak-api-banner">
+      <strong>Kedak Card API — demo contract.</strong>
+      No server implements it yet; “Try it out” needs a backend or a mock server running at the
+      listed server URL.
+    </div>
+    <div id="swagger-ui"></div>
+    <script
+      src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"
+      crossorigin
+    ></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: './openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        docExpansion: 'list',
+        defaultModelsExpandDepth: 1,
+        persistAuthorization: true,
+        tryItOutEnabled: false,
+        // Don't send the spec URL to the public swagger.io validator.
+        validatorUrl: null,
+      })
+    </script>
+  </body>
+</html>

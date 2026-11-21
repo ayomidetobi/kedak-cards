@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<g fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M44 16 L28 21 L14 38 L25 50 L33 43 L33 104 L87 104 L87 43 L95 50 L106 38 L92 21 L76 16 L60 30 Z"/>
+<path stroke-width="1.5" d="M44 16 C52 20 68 20 76 16 M16.8 34.6 L26.6 48.6 M103.2 34.6 L93.4 48.6 M33 98 L87 98"/>
+<path stroke-width="1.5" d="M70 37 L80 37 L80 42 C80 46 77 48 75 49 C73 48 70 46 70 42 Z"/>
+<path fill="#111111" stroke-width="1.5" d="M75 39.4 L75.64 41.12 L77.47 41.2 L76.04 42.34 L76.53 44.1 L75 43.09 L73.47 44.1 L73.96 42.34 L72.53 41.2 L74.36 41.12 Z"/>
+</g>
+<text x="60" y="86" font-size="28" font-family="Georgia, 'Times New Roman', serif" fill="#111111" text-anchor="middle">26</text>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<g fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M60 12 L101.57 36 L101.57 84 L60 108 L18.43 84 L18.43 36 Z"/>
+<path stroke-width="1.5" d="M60 18 L96.37 39 L96.37 81 L60 102 L23.63 81 L23.63 39 Z"/>
+<circle cx="60" cy="48" r="19"/>
+<path stroke-width="2" d="M41 48 L79 48 M60 29 L60 67 M46.6 34.5 C52 41 52 55 46.6 61.5 M73.4 34.5 C68 41 68 55 73.4 61.5"/>
+<path d="M27 68 L93 68 L89 74 L93 80 L27 80 L31 74 Z"/>
+<g fill="#111111" stroke-width="1.5">
+<path d="M48 85.5 L48.86 87.81 L51.33 87.92 L49.4 89.45 L50.06 91.83 L48 90.47 L45.94 91.83 L46.6 89.45 L44.67 87.92 L47.14 87.81 Z"/>
+<path d="M60 85.5 L60.86 87.81 L63.33 87.92 L61.4 89.45 L62.06 91.83 L60 90.47 L57.94 91.83 L58.6 89.45 L56.67 87.92 L59.14 87.81 Z"/>
+<path d="M72 85.5 L72.86 87.81 L75.33 87.92 L73.4 89.45 L74.06 91.83 L72 90.47 L69.94 91.83 L70.6 89.45 L68.67 87.92 L71.14 87.81 Z"/>
+</g>
+</g>
+<text x="60" y="77.3" font-size="9" letter-spacing="1" font-family="Georgia, 'Times New Roman', serif" fill="#111111" text-anchor="middle">EST. 2004</text>
+</svg>

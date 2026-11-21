@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="36.1973" height="27.6803" viewBox="0 0 36.1973 27.6803" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Payment chip" clip-path="url(#clip0_0_4)">
+<path id="Vector" d="M29.8095 1.06456H6.38775C3.44787 1.06456 1.06462 3.44781 1.06462 6.38769V21.2925C1.06462 24.2323 3.44787 26.6156 6.38775 26.6156H29.8095C32.7494 26.6156 35.1326 24.2323 35.1326 21.2925V6.38769C35.1326 3.44781 32.7494 1.06456 29.8095 1.06456Z" fill="#B6B3AC" stroke-width="1.06463" stroke="#898780"/>
+<path id="Vector_2" d="M12.7755 1.06456V26.6156M23.4218 1.06456V26.6156M1.06462 9.58157H12.7755M1.06462 18.0986H12.7755M23.4218 9.58157H35.1326M23.4218 18.0986H35.1326M12.7755 7.45232H23.4218V20.2278H12.7755" stroke-width="0.851701" stroke="#898780"/>
+</g>
+<defs>
+<clipPath id="clip0_0_4">
+<rect width="36.1973" height="27.6803" fill="white"/>
+</clipPath>
+</defs>
+</svg>

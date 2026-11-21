@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <g fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="rotate(27 46 42)">
+      <path d="M46,20 L51.29,34.72 L66.92,35.2 L54.56,44.78 L58.94,59.8 L46,51 L33.06,59.8 L37.44,44.78 L25.08,35.2 L40.71,34.72 Z"/>
+      <path d="M46,31 L48.65,38.36 L56.46,38.6 L50.28,43.39 L52.47,50.9 L46,46.5 L39.53,50.9 L41.72,43.39 L35.54,38.6 L43.35,38.36 Z" fill="#111111" stroke-width="1.5"/>
+    </g>
+    <circle cx="55" cy="51" r="3" fill="#111111"/>
+    <path d="M58.27,51.73 L95.27,88.73 M55.73,54.27 L92.73,91.27"/>
+    <circle cx="95" cy="91" r="3" fill="#111111"/>
+    <path d="M71.9,72.1 L76.1,67.9 M75.4,75.6 L79.6,71.4" stroke-width="1.5"/>
+    <path d="M62,58 Q72,48 75,58 Q69,63 62,58 Z"/>
+    <path d="M62,58 Q52,68 62,71 Q67,65 62,58 Z"/>
+    <path d="M62,58 C58,68 66,76 56,86 M62,58 C72,62 76,68 86,64" stroke-width="1.5"/>
+    <circle cx="62" cy="58" r="2" fill="#111111"/>
+    <path d="M88,20 Q89,27 96,28 Q89,29 88,36 Q87,29 80,28 Q87,27 88,20 Z" fill="#111111" stroke-width="1.5"/>
+    <path d="M22,71 Q22.6,75.4 27,76 Q22.6,76.6 22,81 Q21.4,76.6 17,76 Q21.4,75.4 22,71 Z" fill="#111111" stroke-width="1.5"/>
+    <circle cx="34" cy="94" r="1.5" fill="#111111" stroke="none"/>
+    <circle cx="102" cy="52" r="1.5" fill="#111111" stroke="none"/>
+    <circle cx="74" cy="14" r="1.5" fill="#111111" stroke="none"/>
+  </g>
+</svg>

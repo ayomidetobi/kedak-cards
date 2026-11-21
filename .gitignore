@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.DS_Store
+
+# Editor local-history snapshots (VS Code "Local History" extension)
+.history/
+
+# Environment files: never commit secrets (an example file is fine)
+.env
+.env.*
+!.env.example

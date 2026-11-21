@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<g fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M60 12 L98 22 L98 56 C98 82 80 98 60 108 C40 98 22 82 22 56 L22 22 Z"/>
+<path stroke-width="1.5" d="M60 19 L91 27 L91 56 C91 77 76 91 60 100 C44 91 29 77 29 56 L29 27 Z"/>
+<path d="M29 36 L91 36 M29 50 L91 50"/>
+<path d="M47 50 L47 91 M60 50 L60 100 M73 50 L73 91" stroke-width="2"/>
+<path fill="#111111" stroke-width="1.5" d="M60 23 L61.23 26.3 L64.76 26.45 L62 28.65 L62.94 32.05 L60 30.1 L57.06 32.05 L58 28.65 L55.24 26.45 L58.77 26.3 Z"/>
+</g>
+<text x="60" y="46.4" font-size="9" letter-spacing="1" font-family="Georgia, 'Times New Roman', serif" fill="#111111" text-anchor="middle">EST. 1998</text>
+</svg>
