@@ -1,4 +1,5 @@
-import type { Order, OrderStatus } from '../types/order'
+import type { Order, OrderStatus } from '../types/api'
+import { formatMoney } from './money'
 import { formatOrderDate } from './orderPolicy'
 
 export type StatusTone = 'progress' | 'done' | 'attention' | 'cancelled'
@@ -94,8 +95,8 @@ function stepState(index: number, current: number): TimelineStep['state'] {
 
 /** Timeline for the order page: fulfilment steps, or the cancellation / refund journey. */
 export function orderTimeline(order: Order): TimelineStep[] {
-  const money = `£${order.refund?.amount ?? order.total}`
-  const noPayment = order.payment === 'not-collected'
+  const money = formatMoney(order.refund?.amount ?? order.total)
+  const noPayment = order.payment.status === 'not-collected'
 
   if (order.status === 'cancelled') {
     const steps: TimelineStep[] = [
@@ -115,7 +116,7 @@ export function orderTimeline(order: Order): TimelineStep[] {
     steps.push({
       title: 'Refund issued',
       detail: noPayment
-        ? 'No payment was taken for this preview order'
+        ? 'No payment was taken for this order, so there’s nothing to refund'
         : `${money} to your original payment method`,
       state: order.refund?.state === 'completed' ? 'done' : 'current',
     })

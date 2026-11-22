@@ -4,44 +4,51 @@ import Button from 'primevue/button'
 import RadioButton from 'primevue/radiobutton'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
-import { useOrdersStore } from '../../stores/orders'
-import type { Order } from '../../types/order'
+import { newIdempotencyKey, useCancelOrder, useRequestRefund } from '../../queries/orders'
+import { ApiError, errorMessage } from '../../services/api/errors'
+import type { CancelReason, Order, RefundReason } from '../../types/api'
+import { formatMoney } from '../../utils/money'
 import {
   CANCEL_REASONS,
   holdsOriginalCard,
   REASON_NEEDING_DETAILS,
   REFUND_REASONS,
   REFUND_WINDOW_DAYS,
-  refundDeadline,
   formatOrderDate,
 } from '../../utils/orderPolicy'
 
 // One panel for both flows: cancelling before conversion, or requesting a refund after delivery.
+// The API decides eligibility and validates the request; this panel only collects the reason.
 const props = defineProps<{ order: Order; kind: 'cancel' | 'refund' }>()
 const emit = defineEmits<{ close: []; completed: [order: Order] }>()
 
-const orders = useOrdersStore()
 const toast = useToast()
 const id = useId()
 const heading = ref<HTMLElement | null>(null)
-
 const reason = ref('')
 const details = ref('')
 const error = ref('')
-const submitting = ref(false)
+// One key per attempt: re-submitting after a network error can't cancel/refund twice.
+const idempotencyKey = newIdempotencyKey()
+
+const cancelMutation = useCancelOrder(() => props.order.id)
+const refundMutation = useRequestRefund(() => props.order.id)
+const submitting = computed(
+  () => cancelMutation.isPending.value || refundMutation.isPending.value,
+)
 
 const isCancel = computed(() => props.kind === 'cancel')
-const reasons = computed(() => (isCancel.value ? CANCEL_REASONS : REFUND_REASONS))
+const reasons = computed<readonly string[]>(() => (isCancel.value ? CANCEL_REASONS : REFUND_REASONS))
 const needsDetails = computed(() => reason.value === REASON_NEEDING_DETAILS)
-const noPayment = computed(() => props.order.payment === 'not-collected')
+const noPayment = computed(() => props.order.payment.status === 'not-collected')
 
 // Plain-language summary of what will happen, shown before the customer confirms.
 const consequences = computed(() => {
-  const amount = `£${props.order.total}`
+  const amount = formatMoney(props.order.total)
   if (isCancel.value) {
     return [
       noPayment.value
-        ? 'No payment was taken for this preview order, so there’s nothing to refund.'
+        ? 'No payment has been taken for this order, so there’s nothing to refund.'
         : `You’ll get a full refund of ${amount} to your original payment method.`,
       holdsOriginalCard(props.order)
         ? 'We already have your original card. We’ll send it back to you with tracked delivery.'
@@ -49,7 +56,7 @@ const consequences = computed(() => {
       'Your design is discarded and the order can’t be restarted. You can place a new order any time.',
     ]
   }
-  const deadline = refundDeadline(props.order)
+  const deadline = props.order.refundDeadline
   return [
     'We’ll email return instructions and a prepaid label for your metal card.',
     `Once we’ve inspected it, we’ll refund up to ${amount} to your original payment method.`,
@@ -63,7 +70,8 @@ onMounted(() => {
   void nextTick(() => heading.value?.focus())
 })
 
-function submit() {
+async function submit() {
+  if (submitting.value) return
   error.value = ''
   if (!reason.value) {
     error.value = 'Choose a reason.'
@@ -73,12 +81,11 @@ function submit() {
     error.value = 'Tell us a little more so we can help.'
     return
   }
-  submitting.value = true
+  const input = { details: details.value.trim().slice(0, 500), idempotencyKey }
   try {
-    const input = { reason: reason.value, details: details.value }
     const updated = isCancel.value
-      ? orders.cancelOrder(props.order.id, input)
-      : orders.requestRefund(props.order.id, input)
+      ? await cancelMutation.mutateAsync({ ...input, reason: reason.value as CancelReason })
+      : await refundMutation.mutateAsync({ ...input, reason: reason.value as RefundReason })
     toast.add({
       severity: 'success',
       summary: isCancel.value ? 'Order cancelled' : 'Refund requested',
@@ -89,9 +96,10 @@ function submit() {
     })
     emit('completed', updated)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Something went wrong. Please try again.'
-  } finally {
-    submitting.value = false
+    error.value =
+      cause instanceof ApiError && cause.fieldErrors.length
+        ? cause.fieldErrors[0]!.message
+        : errorMessage(cause, 'Something went wrong. Please try again.')
   }
 }
 </script>

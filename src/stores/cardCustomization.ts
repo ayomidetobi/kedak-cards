@@ -1,50 +1,35 @@
 import { defineStore } from 'pinia'
-import { computed, reactive, ref } from 'vue'
-import { artworkLibrary, defaultArtworkCategory } from '../data/artwork'
-import type {
-  CardCategory,
-  CardCartItem,
-  CardCustomization,
-  CardDesign,
-  CardFinish,
-  ArtworkAssignment,
-  CompatibilityAnswers,
-  CustomizationMode,
-  EngravingStyle,
-  UploadedArtwork,
-  UploadDisplay,
-  UploadOrientation,
+import { computed, ref } from 'vue'
+import {
+  MAX_ITEM_QUANTITY,
+  type ArtworkAssignment,
+  type CardCartItem,
+  type CardCategory,
+  type CardCustomization,
+  type CardFinish,
+  type CustomizationMode,
+  type EngravingStyle,
+  type UploadDisplay,
+  type UploadedArtwork,
+  type UploadOrientation,
 } from '../types/card'
+import type { CompatibilityAnswers, CompatibilityResult } from '../types/api'
 
-// Built from the SVG files in src/assets/artwork (see src/data/artwork.ts).
-export const designs: Record<CardCategory, CardDesign[]> = artworkLibrary
+/**
+ * Client-owned state for designing cards and building the cart.
+ *
+ * Server-owned data is NOT kept here: finishes, prices and stock come from the catalogue query,
+ * artwork from the artwork queries, and cart pricing / checkout readiness from
+ * POST /cart/validate (see src/queries). This store only remembers what the customer chose.
+ */
+export const DEFAULT_HOLDER_NAME = 'ALEX MORGAN'
 
-// Set `inStock: false` to mark a finish as unavailable: it shows an "Out of stock" badge,
-// can't be added to the cart, and blocks checkout for any cart item already using it.
-// Reactive so badges, buttons and checkout update if stock changes while the app is open.
-export const finishes = reactive<
-  Array<{
-    name: CardFinish
-    price: number
-    color: string
-    foreground: string
-    inStock: boolean
-  }>
->([
-  { name: 'Silver', price: 129, color: '#c2c4c9', foreground: '#222226', inStock: true },
-  { name: 'Black', price: 149, color: '#242426', foreground: '#f2f2f5', inStock: true },
-  { name: 'Gold', price: 179, color: '#a99570', foreground: '#f7f3e8', inStock: true },
-  { name: 'Signature', price: 219, color: '#39343d', foreground: '#f2f2f5', inStock: false },
-])
-
-export function isFinishInStock(finish: CardFinish) {
-  return finishes.find((item) => item.name === finish)?.inStock ?? false
-}
-
+/** Locally complete: customised, with one image per card when artwork is per card. */
 export function isCartItemCustomized(item: CardCartItem) {
   const saved = item.customization
   return (
     saved !== null &&
+    (saved.customizationMode !== 'custom' || saved.uploadedArtworks.length > 0) &&
     (saved.artworkAssignment !== 'per-card' || saved.uploadedArtworks.length === item.quantity)
   )
 }
@@ -61,22 +46,26 @@ function hasSameCustomization(left: CardCustomization, right: CardCustomization)
     (left.customizationMode === 'custom' ||
       (left.category === right.category && left.designId === right.designId)) &&
     left.uploadedArtworks.length === right.uploadedArtworks.length &&
-    left.uploadedArtworks.every(
-      (artwork, index) => artwork.url === right.uploadedArtworks[index]?.url,
-    )
+    left.uploadedArtworks.every((artwork, index) => artwork.id === right.uploadedArtworks[index]?.id)
   )
 }
 
+export function isValidQuantity(quantity: number) {
+  return Number.isSafeInteger(quantity) && quantity >= 1 && quantity <= MAX_ITEM_QUANTITY
+}
+
 export const useCardCustomizationStore = defineStore('cardCustomization', () => {
-  const category = ref<CardCategory>(defaultArtworkCategory)
-  const selectedDesignId = ref(designs[defaultArtworkCategory][0]!.id)
+  /** null until the artwork categories load; then the first category from the API. */
+  const category = ref<CardCategory | null>(null)
+  /** null until the gallery loads; then the first design of the category. */
+  const selectedDesignId = ref<string | null>(null)
   const customizationMode = ref<CustomizationMode>('preset')
   const finish = ref<CardFinish>('Black')
   const cartQuantity = ref(1)
   const cartItems = ref<CardCartItem[]>([])
   const editingCartItemId = ref<string | null>(null)
   const engravingStyle = ref<EngravingStyle>('name')
-  const holderName = ref('ALEX MORGAN')
+  const holderName = ref(DEFAULT_HOLDER_NAME)
   const uploadedArtworks = ref<UploadedArtwork[]>([])
   const artworkAssignment = ref<ArtworkAssignment>('shared')
   const uploadOrientation = ref<UploadOrientation>('landscape')
@@ -88,37 +77,22 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     hasChip: true,
     acknowledged: true,
   })
-  const orderPlaced = ref(false)
+  /** Last preliminary screening from POST /compatibility-checks (never a guarantee). */
+  const compatibilityResult = ref<CompatibilityResult | null>(null)
+  /** Reference of the order just placed, for the confirmation page. */
+  const lastPlacedOrderId = ref<string | null>(null)
 
-  const gallery = computed(() => designs[category.value])
-  const selectedDesign = computed(
-    () => gallery.value.find((design) => design.id === selectedDesignId.value) ?? gallery.value[0]!,
-  )
-  const selectedFinish = computed(() => finishes.find((item) => item.name === finish.value)!)
   const uploadedArtwork = computed(() => uploadedArtworks.value[0] ?? null)
   const cartItemCount = computed(() =>
     cartItems.value.reduce((count, item) => count + item.quantity, 0),
   )
-  const cartSubtotal = computed(() =>
-    cartItems.value.reduce(
-      (subtotal, item) =>
-        subtotal +
-        (item.customization?.price ??
-          finishes.find((finishItem) => finishItem.name === item.finish)!.price) *
-          item.quantity,
-      0,
-    ),
-  )
-  // Every item must be customised and in stock before checkout.
-  const canCheckout = computed(
-    () =>
-      cartItems.value.length > 0 &&
-      cartItems.value.every((item) => isCartItemCustomized(item) && isFinishInStock(item.finish)),
+  const allItemsCustomized = computed(
+    () => cartItems.value.length > 0 && cartItems.value.every(isCartItemCustomized),
   )
 
   const customization = computed<CardCustomization>(() => ({
-    category: category.value,
-    designId: selectedDesign.value.id,
+    category: category.value ?? 'Sport',
+    designId: selectedDesignId.value ?? '',
     customizationMode: customizationMode.value,
     finish: finish.value,
     engravingStyle: engravingStyle.value,
@@ -128,12 +102,21 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     artworkAssignment: artworkAssignment.value,
     uploadOrientation: uploadOrientation.value,
     uploadDisplay: uploadDisplay.value,
-    price: selectedFinish.value.price,
   }))
 
   function selectCategory(nextCategory: CardCategory) {
+    if (category.value === nextCategory) return
     category.value = nextCategory
-    selectedDesignId.value = designs[nextCategory][0]!.id
+    selectedDesignId.value = null // the gallery picks the category's first design once loaded
+  }
+
+  /** Initial defaults once the API data arrives; never overrides a customer choice. */
+  function ensureCategory(defaultCategory: CardCategory) {
+    if (category.value === null) category.value = defaultCategory
+  }
+
+  function ensureDesign(designId: string) {
+    selectedDesignId.value = designId
   }
 
   function setCustomizationMode(mode: CustomizationMode) {
@@ -141,10 +124,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
   }
 
   function selectDesign(designId: string) {
-    if (gallery.value.some((design) => design.id === designId)) {
-      selectedDesignId.value = designId
-      uploadedArtworks.value = []
-    }
+    selectedDesignId.value = designId
+    uploadedArtworks.value = []
   }
 
   function setHolderName(value: string) {
@@ -172,8 +153,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
   }
 
   function validateQuantity(quantity: number) {
-    if (!Number.isSafeInteger(quantity) || quantity < 1) {
-      throw new RangeError('Cart quantity must be a positive safe integer.')
+    if (!isValidQuantity(quantity)) {
+      throw new RangeError(`Cart quantity must be between 1 and ${MAX_ITEM_QUANTITY}.`)
     }
   }
 
@@ -193,13 +174,13 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
   }
 
   function resetDraft(nextFinish: CardFinish, quantity = 1) {
-    category.value = defaultArtworkCategory
-    selectedDesignId.value = designs[defaultArtworkCategory][0]!.id
+    selectedDesignId.value = null
+    category.value = null
     customizationMode.value = 'preset'
     finish.value = nextFinish
     cartQuantity.value = quantity
     engravingStyle.value = 'name'
-    holderName.value = 'ALEX MORGAN'
+    holderName.value = DEFAULT_HOLDER_NAME
     uploadedArtworks.value = []
     artworkAssignment.value = 'shared'
     uploadOrientation.value = 'landscape'
@@ -220,7 +201,7 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     } else {
       const saved = item.customization
       category.value = saved.category
-      selectedDesignId.value = saved.designId
+      selectedDesignId.value = saved.designId || null
       customizationMode.value = saved.customizationMode
       finish.value = saved.finish
       cartQuantity.value = item.quantity
@@ -235,14 +216,7 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     return true
   }
 
-  function assertInStock(itemFinish: CardFinish) {
-    if (!isFinishInStock(itemFinish)) {
-      throw new Error(`${itemFinish} is out of stock and can't be added to the cart.`)
-    }
-  }
-
   function addUncustomizedItem(itemFinish: CardFinish, quantity: number) {
-    assertInStock(itemFinish)
     validateQuantity(quantity)
     const existing = cartItems.value.find(
       (item) => item.finish === itemFinish && item.customization === null,
@@ -271,9 +245,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     return true
   }
 
+  /** Saves the draft as a new cart item, or over the item being edited. */
   function addToCart() {
-    // New items must be in stock; edits to an item already in the cart are still allowed to save.
-    if (editingCartItemId.value === null) assertInStock(finish.value)
     const id = editingCartItemId.value ?? createCartItemId()
     const savedCustomization: CardCustomization = {
       ...customization.value,
@@ -312,15 +285,13 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     return id
   }
 
-  // Swap a cart item to another (in-stock) finish, keeping its design, name and quantity.
+  /** Swap a cart item to another finish, keeping its design, name and quantity. */
   function changeCartItemFinish(id: string, nextFinish: CardFinish) {
-    assertInStock(nextFinish)
     const item = cartItems.value.find((cartItem) => cartItem.id === id)
     if (!item) return false
-    const price = finishes.find((candidate) => candidate.name === nextFinish)!.price
     item.finish = nextFinish
     if (item.customization) {
-      item.customization = { ...item.customization, finish: nextFinish, price }
+      item.customization = { ...item.customization, finish: nextFinish }
     }
     return true
   }
@@ -346,8 +317,13 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     compatibilityAnswers.value = answers
   }
 
-  function setOrderPlaced(placed: boolean) {
-    orderPlaced.value = placed
+  function setCompatibilityResult(result: CompatibilityResult | null) {
+    compatibilityResult.value = result
+    if (result) compatibilityAnswers.value = result.answers
+  }
+
+  function setLastPlacedOrder(orderId: string | null) {
+    lastPlacedOrderId.value = orderId
   }
 
   return {
@@ -358,14 +334,12 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     engravingStyle,
     holderName,
     compatibilityAnswers,
-    orderPlaced,
-    gallery,
-    selectedDesign,
-    selectedFinish,
+    compatibilityResult,
+    lastPlacedOrderId,
     customization,
     cartItems,
     cartItemCount,
-    canCheckout,
+    allItemsCustomized,
     editingCartItemId,
     uploadedArtworks,
     uploadedArtwork,
@@ -373,8 +347,9 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     uploadOrientation,
     uploadDisplay,
     cartQuantity,
-    cartSubtotal,
     selectCategory,
+    ensureCategory,
+    ensureDesign,
     selectDesign,
     setHolderName,
     setCustomizationMode,
@@ -394,6 +369,7 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     clearCart,
     setEngravingStyle,
     setCompatibilityAnswers,
-    setOrderPlaced,
+    setCompatibilityResult,
+    setLastPlacedOrder,
   }
 })

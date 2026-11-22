@@ -2,11 +2,18 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { CardDesign } from '../../types/card'
 
-const props = defineProps<{
-  designs: CardDesign[]
-  selectedId: string
-}>()
-const emit = defineEmits<{ select: [designId: string] }>()
+const props = withDefaults(
+  defineProps<{
+    designs: CardDesign[]
+    selectedId: string | null
+    /** Designs are still loading from the API. */
+    loading?: boolean
+    /** Customer-facing error when the designs couldn't load. */
+    error?: string
+  }>(),
+  { loading: false, error: '' },
+)
+const emit = defineEmits<{ select: [designId: string]; retry: [] }>()
 
 const track = ref<HTMLElement | null>(null)
 const canScrollPrev = ref(false)
@@ -73,6 +80,23 @@ watch(
 
 <template>
   <div class="design-carousel" role="region" aria-roledescription="carousel" aria-label="Designs">
+    <p v-if="error" class="upload-error design-gallery-state" role="alert">
+      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+      <span>{{ error }}</span>
+      <button type="button" class="design-gallery-retry" @click="emit('retry')">Try again</button>
+    </p>
+    <div
+      v-else-if="loading"
+      class="design-gallery is-loading"
+      aria-busy="true"
+      aria-label="Loading designs"
+    >
+      <span v-for="index in 5" :key="index" class="design-thumbnail design-thumbnail-skeleton"></span>
+    </div>
+    <p v-else-if="!designs.length" class="muted-copy design-gallery-state">
+      No designs in this category yet. Choose another category.
+    </p>
+    <template v-else>
     <div class="design-carousel-bar">
       <span class="design-carousel-count">
         {{ designs.length }} design{{ designs.length === 1 ? '' : 's' }}
@@ -131,5 +155,6 @@ watch(
         <span class="design-name">{{ design.name }}</span>
       </button>
     </div>
+    </template>
   </div>
 </template>

@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router'
 import TextLink from '../components/TextLink.vue'
 import OrderLookupForm from '../components/orders/OrderLookupForm.vue'
 import { useAuthStore } from '../stores/auth'
-import type { Order } from '../types/order'
+import type { Order } from '../types/api'
 import { REFUND_WINDOW_DAYS } from '../utils/orderPolicy'
 
 // Guest entry point for managing an order (track, cancel, refund) without an account.

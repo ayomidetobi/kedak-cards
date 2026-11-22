@@ -5979,3 +5979,623 @@ a:focus-visible {
     padding: 36px 40px;
   }
 }
+
+/* ==========================================================================
+   API states (loading / error / progress) — built from existing tokens
+   ========================================================================== */
+.design-gallery-state {
+  margin: 8px 0;
+  align-items: center;
+}
+
+.design-gallery-retry,
+.api-retry {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.design-thumbnail-skeleton {
+  border-color: var(--kedak-border);
+  background: var(--p-skeleton-background, var(--kedak-subtle));
+  animation: kedak-pulse 1.4s ease-in-out infinite;
+}
+
+.upload-progress {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.upload-progress::before {
+  content: '';
+  grid-area: 1 / 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--kedak-subtle);
+}
+
+.upload-progress-bar {
+  grid-area: 1 / 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--kedak-action);
+  transition: width 0.2s ease;
+}
+
+.upload-progress small {
+  color: var(--kedak-secondary);
+  font-size: 12px;
+}
+
+.api-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--kedak-secondary);
+  font-size: 13px;
+}
+
+.api-state.is-error {
+  padding: 12px 14px;
+  border: 1px solid var(--kedak-message-error-border);
+  border-radius: var(--kedak-card-radius);
+  background: var(--kedak-message-error-background);
+  color: var(--kedak-message-error-text);
+}
+
+.price-pending {
+  display: inline-block;
+  min-width: 3ch;
+  color: var(--kedak-secondary);
+}
+
+.cart-item-issues {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--kedak-danger-text);
+  font-size: 13px;
+}
+
+.account-password-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ops-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+.ops-history {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.ops-action-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@keyframes kedak-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .design-thumbnail-skeleton {
+    animation: none;
+  }
+}
+
+.auth-forgot {
+  margin: -4px 0 0;
+  font-size: 13px;
+  text-align: right;
+}
+
+.auth-forgot a {
+  color: var(--kedak-secondary);
+}
+
+.account-security-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  justify-items: start;
+}
+
+/* ==========================================================================
+   Checkout payment methods (Stripe / Paystack) — mirrors .customization-mode-option
+   ========================================================================== */
+.payment-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.payment-options {
+  display: grid;
+  gap: 10px;
+}
+
+.payment-option {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--kedak-border);
+  border-radius: var(--kedak-card-radius);
+  background: var(--kedak-surface);
+  color: var(--kedak-text);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.payment-option:hover {
+  border-color: var(--accent);
+}
+
+.payment-option.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.payment-option:has(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.payment-option-radio {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 1.5px solid var(--kedak-border);
+  border-radius: 50%;
+  background: var(--kedak-surface);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.payment-option.is-active .payment-option-radio {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 4px var(--accent);
+}
+
+.payment-option-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 3px;
+}
+
+.payment-option-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.payment-option-title strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.payment-option-copy small {
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.payment-option-copy .payment-option-hint {
+  font-size: 12px;
+}
+
+.payment-option-badge {
+  padding: 2px 8px;
+  border: 1px solid var(--kedak-status-pending-border);
+  border-radius: 999px;
+  background: var(--kedak-status-pending-background);
+  color: var(--kedak-status-pending-text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.payment-option-icons {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  margin-top: 3px;
+  color: var(--kedak-secondary);
+  font-size: 15px;
+}
+
+.payment-option.is-active .payment-option-icons {
+  color: var(--kedak-text);
+}
+
+.payment-detail {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed var(--kedak-border);
+  border-radius: var(--kedak-card-radius);
+  background: var(--kedak-subtle);
+}
+
+.payment-methods {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.payment-methods li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--kedak-border);
+  border-radius: 999px;
+  background: var(--kedak-surface);
+  color: var(--kedak-text);
+  font-size: 12px;
+}
+
+.payment-flow {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.payment-flow > i {
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+.payment-flow strong {
+  color: var(--kedak-text);
+}
+
+@media (max-width: 420px) {
+  .payment-option-icons {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payment-option,
+  .payment-option-radio {
+    transition: none;
+  }
+}
+
+.payment-option-currency {
+  padding: 2px 8px;
+  border: 1px solid var(--kedak-border);
+  border-radius: 999px;
+  color: var(--kedak-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.payment-option.is-unavailable {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.payment-option.is-unavailable:hover {
+  border-color: var(--kedak-border);
+}
+
+.pay-now-panel {
+  display: grid;
+  gap: 12px;
+}
+
+/* Compact payment cards (overrides the first version above) */
+.payment-option {
+  align-items: center;
+}
+
+.payment-option-copy strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.payment-option-radio {
+  margin-top: 0;
+}
+
+.payment-option-amount {
+  flex: none;
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.payment-option.is-active .payment-option-amount {
+  color: var(--kedak-text);
+  font-weight: 600;
+}
+
+.payment-picker .payment-flow {
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   Final checkout step: confirmation
+   ========================================================================== */
+.confirm-main {
+  display: grid;
+  gap: 20px;
+  max-width: 960px;
+}
+
+.confirm-progress {
+  margin: 0;
+}
+
+.confirm-hero {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 36px 24px 28px;
+  text-align: center;
+}
+
+.confirm-hero .eyebrow {
+  margin: 4px 0 0;
+}
+
+.confirm-hero-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--kedak-subtle);
+  color: var(--kedak-text);
+  font-size: 22px;
+}
+
+.confirm-hero.is-paid .confirm-hero-icon,
+.confirm-hero.is-received .confirm-hero-icon {
+  background: var(--kedak-action);
+  color: var(--kedak-on-action);
+}
+
+.confirm-hero.is-processing .confirm-hero-icon,
+.confirm-hero.is-unpaid .confirm-hero-icon {
+  background: var(--kedak-status-pending-background);
+  color: var(--kedak-status-pending-text);
+}
+
+.confirm-hero-title {
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.confirm-hero-copy {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--kedak-secondary);
+  line-height: 1.55;
+}
+
+.confirm-facts {
+  width: 100%;
+  max-width: 620px;
+  margin: 14px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--kedak-border);
+}
+
+.confirm-facts > div {
+  min-width: 0;
+  padding: 14px 8px 0;
+}
+
+.confirm-facts dt {
+  color: var(--kedak-secondary);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.confirm-facts dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.confirm-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid var(--kedak-status-pending-border);
+  border-radius: 999px;
+  background: var(--kedak-status-pending-background);
+  color: var(--kedak-status-pending-text);
+  font-size: 12px;
+}
+
+.confirm-pill.is-paid {
+  border-color: var(--kedak-status-complete-border);
+  background: var(--kedak-status-complete-background);
+  color: var(--kedak-status-complete-text);
+}
+
+.confirm-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.confirm-card {
+  display: grid;
+  gap: 16px;
+}
+
+.confirm-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.confirm-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.confirm-next h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.confirm-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: confirm-step;
+  display: grid;
+  gap: 14px;
+}
+
+.confirm-steps li {
+  counter-increment: confirm-step;
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: 40px;
+}
+
+.confirm-steps li::before {
+  content: counter(confirm-step, decimal-leading-zero);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--kedak-border);
+  border-radius: 50%;
+  color: var(--kedak-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.confirm-steps strong {
+  font-size: 14px;
+}
+
+.confirm-steps span {
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.confirm-notify {
+  margin: 18px 0 0;
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--kedak-card-radius);
+  background: var(--kedak-subtle);
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.confirm-notify > i {
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.confirm-footnote {
+  margin: 0;
+  color: var(--kedak-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .confirm-layout,
+  .confirm-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .confirm-facts > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0 0;
+    text-align: left;
+  }
+
+  .confirm-facts dd {
+    margin: 0;
+    text-align: right;
+  }
+
+  .confirm-actions .p-button {
+    flex: 1 1 100%;
+  }
+}
+
+/* Google's official sign-in button (rendered by Google Identity Services) */
+.auth-google-slot {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-google-slot iframe {
+  max-width: 100%;
+}

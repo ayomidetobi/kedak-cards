@@ -11,3 +11,5 @@ coverage
 .env
 .env.*
 !.env.example
+# Development defaults hold no secrets (see .env.example)
+!.env.development

@@ -1,67 +1,109 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
-import * as authService from '../services/auth'
-import type { AuthUser, EmailCredentials, SignupDetails } from '../services/auth'
+import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
+import * as authApi from '../services/api/endpoints/auth'
+import { clearOrderAccess } from '../services/api/orderAccess'
+import { onSessionExpired, setSessionHint } from '../services/api/session'
+import { currentUserQueryOptions } from '../queries/auth'
+import { queryClient } from '../queries/query-client'
+import { queryKeys, userScopedRoots } from '../queries/query-keys'
+import type { User } from '../types/api'
 
-const SESSION_KEY = 'kedak-session'
-
-function isAuthUser(value: unknown): value is AuthUser {
-  if (!value || typeof value !== 'object') return false
-  const user = value as Record<string, unknown>
-  return (
-    typeof user.id === 'string' &&
-    typeof user.name === 'string' &&
-    typeof user.email === 'string' &&
-    (user.provider === 'email' || user.provider === 'google')
-  )
+export interface EmailCredentials {
+  email: string
+  password: string
 }
 
-// Storage can be unavailable (private browsing, blocked site data); the app works without it.
-function readSession(): AuthUser | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY)
-    const parsed: unknown = raw ? JSON.parse(raw) : null
-    return isAuthUser(parsed) ? parsed : null
-  } catch {
-    return null
-  }
+export interface SignupDetails extends EmailCredentials {
+  fullName: string
+  acceptTerms: boolean
 }
 
-function writeSession(user: AuthUser | null) {
-  try {
-    if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-    else localStorage.removeItem(SESSION_KEY)
-  } catch {
-    // Session simply won't survive a reload.
-  }
+/** Drops every cached query that belongs to a user, so the next person never sees it. */
+function resetUserScopedData() {
+  for (const root of userScopedRoots) queryClient.removeQueries({ queryKey: root })
 }
 
+/**
+ * Authentication facade. The signed-in user is server state (GET /auth/me in TanStack Query);
+ * this store exposes it to the router and components and runs the auth actions. Session
+ * tokens are HTTP-only cookies and never pass through here.
+ */
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<AuthUser | null>(readSession())
+  const meQuery = useQuery(currentUserQueryOptions(), queryClient)
+  const user = computed<User | null>(() => meQuery.data.value ?? null)
   const isSignedIn = computed(() => user.value !== null)
+  const isReady = computed(() => !meQuery.isPending.value)
   const firstName = computed(() => user.value?.name.trim().split(/\s+/)[0] ?? '')
 
-  function setUser(next: AuthUser | null) {
-    user.value = next
-    writeSession(next)
+  function establishSession(next: User) {
+    resetUserScopedData()
+    setSessionHint(true)
+    queryClient.setQueryData(queryKeys.auth.me(), next)
+  }
+
+  function endSession() {
+    setSessionHint(false)
+    resetUserScopedData()
+    clearOrderAccess()
+    queryClient.setQueryData(queryKeys.auth.me(), null)
+  }
+
+  // Session couldn't be refreshed (expired or revoked): forget the user everywhere.
+  onSessionExpired(() => {
+    if (queryClient.getQueryData(queryKeys.auth.me())) endSession()
+  })
+
+  /** Resolves once we know whether someone is signed in (used by route guards). */
+  async function ensureSession(): Promise<User | null> {
+    try {
+      return await queryClient.ensureQueryData(currentUserQueryOptions())
+    } catch {
+      return null // API unreachable: treat as signed out; the page shows its own errors
+    }
   }
 
   async function signIn(credentials: EmailCredentials) {
-    setUser(await authService.signInWithEmail(credentials))
+    establishSession(
+      await authApi.logIn({ email: credentials.email.trim(), password: credentials.password }),
+    )
   }
 
   async function signUp(details: SignupDetails) {
-    setUser(await authService.signUpWithEmail(details))
+    establishSession(
+      await authApi.signUp({
+        fullName: details.fullName.trim(),
+        email: details.email.trim(),
+        password: details.password,
+        acceptTerms: true,
+      }),
+    )
   }
 
-  async function signInWithGoogle() {
-    setUser(await authService.signInWithGoogle())
+  /** Exchanges the ID token from Google's button for a Kedak session (POST /auth/google). */
+  async function signInWithGoogle(idToken: string) {
+    establishSession(await authApi.signInWithGoogle(idToken))
   }
 
   async function signOut() {
-    await authService.signOut()
-    setUser(null)
+    try {
+      await authApi.logOut()
+    } catch {
+      // Already expired or revoked server-side; signing out locally is still correct.
+    } finally {
+      endSession()
+    }
   }
 
-  return { user, isSignedIn, firstName, signIn, signUp, signInWithGoogle, signOut }
+  return {
+    user,
+    isSignedIn,
+    isReady,
+    firstName,
+    ensureSession,
+    signIn,
+    signUp,
+    signInWithGoogle,
+    signOut,
+  }
 })

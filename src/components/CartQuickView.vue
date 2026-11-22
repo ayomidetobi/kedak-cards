@@ -4,13 +4,12 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Popover, { type PopoverMethods } from 'primevue/popover'
 import { useToast } from 'primevue/usetoast'
-import {
-  designs,
-  finishes,
-  isCartItemCustomized,
-  isFinishInStock,
-  useCardCustomizationStore,
-} from '../stores/cardCustomization'
+import { isCartItemCustomized, useCardCustomizationStore } from '../stores/cardCustomization'
+import { PLACEHOLDER_DESIGN } from '../composables/useArtworkSelection'
+import { useDesignLookup } from '../queries/artwork'
+import { useCartValidation } from '../queries/cart'
+import { MAX_ITEM_QUANTITY } from '../types/card'
+import { formatMoney } from '../utils/money'
 import CardPreview from './card/CardPreview.vue'
 import StockBadge from './StockBadge.vue'
 import TextLink from './TextLink.vue'
@@ -23,6 +22,13 @@ const props = defineProps<{
 const router = useRouter()
 const toast = useToast()
 const store = useCardCustomizationStore()
+// Prices and checkout readiness come from POST /cart/validate; artwork from the artwork API.
+const cart = useCartValidation()
+const designs = useDesignLookup(() =>
+  store.cartItems.flatMap((item) =>
+    item.customization?.customizationMode === 'preset' ? [item.customization.designId] : [],
+  ),
+)
 const popover = ref<PopoverMethods | null>(null)
 const isPopoverOpen = ref(false)
 const pendingDeleteId = ref<string | null>(null)
@@ -47,30 +53,19 @@ function itemDescription(item: CardCartItem) {
     return `${customization.holderName} · Custom artwork`
   }
 
-  const design = designs[customization.category].find(
-    (candidate) => candidate.id === customization.designId,
-  )
+  const design = designs.value.get(customization.designId)
   return `${customization.holderName} · ${design?.name ?? 'Pre-designed artwork'}`
-}
-
-function itemSubtotal(item: CardCartItem) {
-  const price =
-    item.customization?.price ?? finishes.find((finish) => finish.name === item.finish)!.price
-  return price * item.quantity
 }
 
 function itemDesign(item: CardCartItem) {
   const customization = item.customization
-  if (!customization) return store.selectedDesign
-  return (
-    designs[customization.category].find((design) => design.id === customization.designId) ??
-    store.selectedDesign
-  )
+  if (!customization || customization.customizationMode !== 'preset') return PLACEHOLDER_DESIGN
+  return designs.value.get(customization.designId) ?? PLACEHOLDER_DESIGN
 }
 
 function adjustItemQuantity(item: CardCartItem, change: -1 | 1) {
   const quantity = item.quantity + change
-  if (!Number.isSafeInteger(quantity) || quantity < 1) return
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_QUANTITY) return
 
   if (!store.setCartItemQuantity(item.id, quantity)) {
     toast.add({
@@ -82,22 +77,24 @@ function adjustItemQuantity(item: CardCartItem, change: -1 | 1) {
   }
 }
 
-// Checkout needs every item customised and in stock (store.canCheckout); explain what's missing.
+// Checkout needs the server to confirm every item is customised and in stock.
 const checkoutBlockedReason = computed(() => {
-  if (!store.cartItems.length || store.canCheckout) return ''
+  if (!store.cartItems.length || cart.canCheckout.value) return ''
+  if (cart.isValidating.value && !cart.result.value) return 'Checking prices and stock…'
+  if (cart.error.value) return 'We couldn’t check your cart. Open the full cart to try again.'
   const reasons: string[] = []
-  if (store.cartItems.some((item) => !isFinishInStock(item.finish))) {
+  if (store.cartItems.some((item) => cart.hasIssue(item.id, 'finish_out_of_stock'))) {
     reasons.push('switch or remove out-of-stock items')
   }
   if (store.cartItems.some((item) => !isCartItemCustomized(item))) {
     reasons.push('customise every item')
   }
-  const sentence = reasons.join(' and ')
-  return `To check out, ${sentence}.`
+  if (!reasons.length) return cart.isValidating.value ? 'Checking prices and stock…' : ''
+  return `To check out, ${reasons.join(' and ')}.`
 })
 
 function goToCheckout() {
-  if (!store.canCheckout) return
+  if (!cart.canCheckout.value) return
   closePopover()
   void router.push('/checkout')
 }
@@ -230,7 +227,7 @@ function removeItem(item: CardCartItem) {
               <div class="cart-quick-view-item-content">
                 <div class="cart-quick-view-item-heading">
                   <strong>{{ item.finish }} metal card</strong>
-                  <strong class="price-text">£{{ itemSubtotal(item) }}</strong>
+                  <strong class="price-text">{{ formatMoney(cart.lineTotal(item.id)) }}</strong>
                 </div>
                 <span class="cart-quick-view-item-description">{{ itemDescription(item) }}</span>
                 <span
@@ -245,7 +242,10 @@ function removeItem(item: CardCartItem) {
                   ></i>
                   {{ isCartItemCustomized(item) ? 'Customised' : 'Not customised' }}
                 </span>
-                <StockBadge v-if="!isFinishInStock(item.finish)" :finish="item.finish" />
+                <StockBadge
+                  v-if="cart.hasIssue(item.id, 'finish_out_of_stock')"
+                  :finish="item.finish"
+                />
               </div>
             </div>
 
@@ -297,7 +297,7 @@ function removeItem(item: CardCartItem) {
                 <button
                   type="button"
                   :aria-label="`Increase ${item.finish} quantity`"
-                  :disabled="item.quantity === Number.MAX_SAFE_INTEGER"
+                  :disabled="item.quantity === MAX_ITEM_QUANTITY"
                   @click="adjustItemQuantity(item, 1)"
                 >
                   <i class="pi pi-plus" aria-hidden="true"></i>
@@ -335,7 +335,7 @@ function removeItem(item: CardCartItem) {
         <footer v-if="store.cartItems.length" class="cart-quick-view-footer">
           <div class="cart-quick-view-subtotal">
             <span>Subtotal</span>
-            <strong class="price-text">£{{ store.cartSubtotal }}</strong>
+            <strong class="price-text">{{ formatMoney(cart.subtotal.value) }}</strong>
           </div>
           <p class="cart-quick-view-note">Return delivery calculated at checkout.</p>
           <p
@@ -352,7 +352,8 @@ function removeItem(item: CardCartItem) {
             label="Checkout"
             icon="pi pi-arrow-right"
             icon-pos="right"
-            :disabled="!store.canCheckout"
+            :disabled="!cart.canCheckout.value"
+            :loading="cart.isValidating.value"
             :aria-describedby="
               checkoutBlockedReason ? `cart-quick-view-blocked-${variant}` : undefined
             "

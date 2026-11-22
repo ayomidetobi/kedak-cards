@@ -8,20 +8,30 @@ export type UploadOrientation = 'landscape' | 'portrait'
 /** Where an uploaded image sits: the artwork spot ('default') or the whole card ('cover'). */
 export type UploadDisplay = 'default' | 'cover'
 
+/** Server limits for one cart line and for the whole cart (abuse protection). */
+export const MAX_ITEM_QUANTITY = 20
+export const MAX_CART_ITEMS = 20
+
 export interface CardDesign {
   id: string
   name: string
   category: CardCategory
   number: string
-  /** Monochrome SVG artwork (see src/data/artwork.ts). Absent for placeholder designs. */
+  /** Monochrome SVG artwork served by the API. Absent only for decorative placeholders. */
   artworkUrl?: string
 }
 
+/** A customer image stored by POST /uploads/artwork. */
 export interface UploadedArtwork {
+  /** Server id, sent back as `uploadedArtworkIds` at checkout. */
+  id: string
   name: string
   size: number
   type: 'image/png' | 'image/jpeg' | 'image/webp'
+  /** Signed, short-lived URL from the API. */
   url: string
+  /** Local object URL of the original file for instant previews (this tab only). */
+  previewUrl?: string
 }
 
 export interface CardCustomization {
@@ -36,7 +46,6 @@ export interface CardCustomization {
   artworkAssignment: ArtworkAssignment
   uploadOrientation: UploadOrientation
   uploadDisplay: UploadDisplay
-  price: number
 }
 
 export interface CardCartItem {
@@ -44,12 +53,4 @@ export interface CardCartItem {
   finish: CardFinish
   quantity: number
   customization: CardCustomization | null
-}
-
-export interface CompatibilityAnswers {
-  country: string
-  network: string
-  cardType: string
-  hasChip: boolean
-  acknowledged: boolean
 }

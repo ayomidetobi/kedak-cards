@@ -9,8 +9,8 @@
     "license": { "name": "Proprietary" }
   },
   "servers": [
-    { "url": "http://localhost:3000/v1", "description": "Local development" },
-    { "url": "https://api.example.com/v1", "description": "Production (placeholder host)" }
+    { "url": "http://localhost:8000/api/v1", "description": "Local development (Django runserver)" },
+    { "url": "https://api.example.com/api/v1", "description": "Production (placeholder host)" }
   ],
   "tags": [
     { "name": "Auth", "description": "Email/password and Google sign-in. Accounts are optional — guest checkout is always available." },
@@ -796,7 +796,7 @@
           "acknowledgement": { "type": "boolean", "const": true, "description": "Customer owns the card and understands the conversion risks." }
         }
       },
-      "OrderId": { "type": "string", "pattern": "^KD-\\d{4}$", "examples": ["KD-2051"] },
+      "OrderId": { "type": "string", "pattern": "^KD-\\d{4,8}$", "description": "KD- followed by 4 to 8 digits. References start at 4 digits and grow only when a length is nearly used up, so existing references stay valid.", "examples": ["KD-2051", "KD-48213"] },
       "OrderStatus": {
         "type": "string",
         "enum": ["awaiting-card", "card-received", "assessed", "in-production", "dispatched", "delivered", "cancelled", "refund-requested", "refunded"],
@@ -821,8 +821,8 @@
         "type": "object",
         "required": ["status"],
         "properties": {
-          "status": { "type": "string", "enum": ["not-collected", "paid", "refunded", "partially-refunded"], "description": "`not-collected` until Stripe is connected." },
-          "provider": { "type": ["string", "null"], "enum": ["stripe", null] }
+          "status": { "type": "string", "enum": ["not-collected", "paid", "refunded", "partially-refunded"], "description": "`not-collected` until the provider confirms payment (signed webhook or server-side lookup)." },
+          "provider": { "type": ["string", "null"], "enum": ["stripe", "paystack", null], "description": "Hosted-checkout provider that holds the payment; null until a checkout is started." }
         }
       },
       "OrderCancellation": {

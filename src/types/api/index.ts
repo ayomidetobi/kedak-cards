@@ -1,0 +1,53 @@
+/**
+ * Friendly aliases for the API contract types generated from public/api-docs/openapi.json.
+ * Regenerate schema.d.ts with `npm run api:types` whenever the contract changes.
+ */
+import type { components } from './schema'
+
+type Schemas = components['schemas']
+
+export type Money = Schemas['Money']
+export type Problem = Schemas['Problem']
+export type User = Schemas['User']
+export type Session = Schemas['Session']
+export type SignupRequest = Schemas['SignupRequest']
+export type LoginRequest = Schemas['LoginRequest']
+export type Finish = Schemas['Finish']
+export type ArtworkCategorySummary = Schemas['ArtworkCategorySummary']
+export type ApiCardDesign = Schemas['CardDesign']
+export type ApiUploadedArtwork = Schemas['UploadedArtwork']
+export type CardCustomizationInput = Schemas['CardCustomizationInput']
+export type ApiCardCustomization = Schemas['CardCustomization']
+export type CompatibilityAnswers = Schemas['CompatibilityAnswers']
+export type CompatibilityResult = Schemas['CompatibilityResult']
+export type CartItemInput = Schemas['CartItemInput']
+export type CartValidationRequest = Schemas['CartValidationRequest']
+export type CartIssue = Schemas['CartIssue']
+export type CartValidationResult = Schemas['CartValidationResult']
+export type CartValidationItem = CartValidationResult['items'][number]
+export type PlaceOrderRequest = Schemas['PlaceOrderRequest']
+export type OrderStatus = Schemas['OrderStatus']
+export type RefundState = Schemas['RefundState']
+export type CancelReason = Schemas['CancelReason']
+export type RefundReason = Schemas['RefundReason']
+export type OrderLine = Schemas['OrderLine']
+export type Payment = Schemas['Payment']
+export type OrderCancellation = Schemas['OrderCancellation']
+export type OrderRefund = Schemas['OrderRefund']
+export type Order = Schemas['Order']
+export type OrderSummary = Schemas['OrderSummary']
+export type OrderSummaryPage = Schemas['OrderSummaryPage']
+export type PlacedOrder = Schemas['PlacedOrder']
+export type OrderLookupRequest = Schemas['OrderLookupRequest']
+export type OrderAccessGrant = Schemas['OrderAccessGrant']
+export type Eligibility = Schemas['Eligibility']
+export type OrderEligibility = Schemas['OrderEligibility']
+export type CancelOrderRequest = Schemas['CancelOrderRequest']
+export type RefundRequest = Schemas['RefundRequest']
+export type AdvanceStatusRequest = Schemas['AdvanceStatusRequest']
+export type RefundDecisionRequest = Schemas['RefundDecisionRequest']
+export type Policy = Schemas['Policy']
+export type PolicySection = Schemas['PolicySection']
+
+/** Fulfilment statuses staff can move an order to (AdvanceStatusRequest.status). */
+export type AdvanceableStatus = AdvanceStatusRequest['status']

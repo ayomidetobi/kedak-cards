@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
@@ -10,8 +10,11 @@ import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import { useToast } from 'primevue/usetoast'
 import CardPreview from '../components/card/CardPreview.vue'
+import { PLACEHOLDER_DESIGN } from '../composables/useArtworkSelection'
+import { useArtworkDesignsQuery } from '../queries/artwork'
+import { errorMessage } from '../services/api/errors'
+import { renderGoogleButton } from '../services/google'
 import { useAuthStore } from '../stores/auth'
-import { designs } from '../stores/cardCustomization'
 import { loginSchema, passwordRules, signupSchema } from '../types/forms'
 
 const route = useRoute()
@@ -27,7 +30,9 @@ const loginResolver = zodResolver(loginSchema)
 const signupResolver = zodResolver(signupSchema)
 const loginInitial = { email: '', password: '' }
 const signupInitial = { fullName: '', email: '', password: '', acceptTerms: false }
-const previewDesign = designs.Anime[0]!
+// Decorative preview: the first Anime design from the artwork API (blank until it loads).
+const animeDesigns = useArtworkDesignsQuery('Anime')
+const previewDesign = computed(() => animeDesigns.data.value?.[0] ?? PLACEHOLDER_DESIGN)
 
 // Only follow same-site paths, so ?redirect= can't send people to another website.
 const redirectTarget = computed(() => {
@@ -68,17 +73,40 @@ async function run(kind: 'email' | 'google', action: () => Promise<void>, welcom
     toast.add({ severity: 'success', summary: welcome, life: 2600 })
     await router.replace(redirectTarget.value)
   } catch (error) {
-    formError.value =
-      error instanceof Error && error.message
-        ? error.message
-        : 'Something went wrong. Please try again.'
+    // Server messages (e.g. wrong password, email already registered, rate limited) are shown as is.
+    formError.value = errorMessage(error, 'Something went wrong. Please try again.')
   } finally {
     pending.value = null
   }
 }
 
+// Google's official button opens Google's sign-in popup (works whether or not the customer is
+// already signed in to Google). Until it renders, our styled button is a placeholder.
+const googleSlot = ref<HTMLElement | null>(null)
+const googleReady = ref(false)
+const googleUnavailable = ref('')
+
+async function mountGoogleButton() {
+  await nextTick()
+  if (!googleSlot.value) return
+  try {
+    await renderGoogleButton(
+      googleSlot.value,
+      (idToken) => void run('google', () => auth.signInWithGoogle(idToken), 'Signed in with Google'),
+      isSignup.value ? 'signup_with' : 'continue_with',
+    )
+    googleReady.value = true
+  } catch (error) {
+    googleReady.value = false
+    googleUnavailable.value = errorMessage(error, 'Google sign-in isn’t available right now.')
+  }
+}
+
+onMounted(mountGoogleButton)
+watch(isSignup, mountGoogleButton)
+
 function continueWithGoogle() {
-  void run('google', () => auth.signInWithGoogle(), 'Signed in with Google')
+  formError.value = googleUnavailable.value || 'Google sign-in is still loading. Try again in a moment.'
 }
 
 function submitLogin(event: FormSubmitEvent) {
@@ -114,7 +142,13 @@ function passwordValue(value: unknown) {
           }}
         </p>
 
+        <div
+          v-show="googleReady && pending !== 'google'"
+          ref="googleSlot"
+          class="auth-google-slot"
+        ></div>
         <button
+          v-if="!googleReady || pending === 'google'"
           type="button"
           class="auth-google-button"
           :disabled="pending !== null"
@@ -278,6 +312,9 @@ function passwordValue(value: unknown) {
               {{ $field.error?.message }}
             </small>
           </FormField>
+          <p class="auth-forgot">
+            <RouterLink to="/forgot-password">Forgot your password?</RouterLink>
+          </p>
           <Button
             type="submit"
             class="kedak-action auth-submit"
@@ -301,10 +338,6 @@ function passwordValue(value: unknown) {
           </span>
         </p>
 
-        <p class="muted-copy auth-preview-note">
-          Preview: sign-in isn’t connected to a server yet. Your session stays on this device only
-          and no password is stored.
-        </p>
       </section>
 
       <aside class="auth-aside" aria-labelledby="auth-aside-title">

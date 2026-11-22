@@ -5,18 +5,22 @@ import { useToast } from 'primevue/usetoast'
 import { RouterLink } from 'vue-router'
 import { useCardCustomization } from '../composables/useCardCustomization'
 import type { CollectionProduct } from '../data/collectionProducts'
-import { isFinishInStock } from '../stores/cardCustomization'
+import { useFinishCatalog } from '../queries/catalog'
+import { MAX_ITEM_QUANTITY } from '../types/card'
 import FinishCard from './FinishCard.vue'
 import StockBadge from './StockBadge.vue'
 
 const { finish, description } = defineProps<CollectionProduct>()
 const customization = useCardCustomization()
 const toast = useToast()
+const catalog = useFinishCatalog()
 const quantity = ref(1)
-const inStock = computed(() => isFinishInStock(finish))
+// Stock is the server's answer (GET /finishes); while it loads, nothing can be added.
+const inStock = computed(() => catalog.isInStock(finish))
+const stockKnown = computed(() => catalog.finish(finish) !== null)
 
 function updateQuantity(amount: number) {
-  quantity.value = Math.max(1, quantity.value + amount)
+  quantity.value = Math.min(MAX_ITEM_QUANTITY, Math.max(1, quantity.value + amount))
 }
 
 function openCustomizer() {
@@ -56,7 +60,7 @@ function addToCart() {
         <button
           type="button"
           :aria-label="`Increase ${finish} quantity`"
-          :disabled="!inStock"
+          :disabled="!inStock || quantity === MAX_ITEM_QUANTITY"
           @click="updateQuantity(1)"
         >
           <i class="pi pi-plus" aria-hidden="true"></i>
@@ -65,8 +69,8 @@ function addToCart() {
       <Button
         size="small"
         class="collection-add-to-cart"
-        :label="inStock ? 'Add to cart' : 'Out of stock'"
-        :icon="inStock ? 'pi pi-shopping-cart' : 'pi pi-ban'"
+        :label="!stockKnown ? 'Add to cart' : inStock ? 'Add to cart' : 'Out of stock'"
+        :icon="!stockKnown || inStock ? 'pi pi-shopping-cart' : 'pi pi-ban'"
         :disabled="!inStock"
         @click="addToCart"
       />

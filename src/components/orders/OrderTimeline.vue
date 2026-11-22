@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Order } from '../../types/order'
+import type { Order } from '../../types/api'
 import { orderTimeline } from '../../utils/orderStatus'
 
 const props = defineProps<{ order: Order }>()

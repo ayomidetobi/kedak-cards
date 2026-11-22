@@ -95,7 +95,7 @@ const monogram = computed(() =>
           :data-placement="placement"
           aria-hidden="true"
         >
-          <img :src="uploadedArtwork.url" alt="" />
+          <img :src="uploadedArtwork.previewUrl ?? uploadedArtwork.url" alt="" />
         </span>
         <span
           v-if="showArtwork"

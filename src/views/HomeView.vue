@@ -4,17 +4,23 @@ import { useRouter } from 'vue-router'
 import CardPreview from '../components/card/CardPreview.vue'
 import CollectionProductCard from '../components/CollectionProductCard.vue'
 import TextLink from '../components/TextLink.vue'
-import { collectionProducts } from '../data/collectionProducts'
-import { finishes } from '../stores/cardCustomization'
+import { computed } from 'vue'
+import { collectionProduct } from '../data/collectionProducts'
+import { useFinishCatalog } from '../queries/catalog'
 import type { CardDesign, CardFinish } from '../types/card'
+import { formatMoney } from '../utils/money'
 
 const router = useRouter()
-const featured = collectionProducts.slice(0, 2)
+const catalog = useFinishCatalog()
+// Featured: the first two finishes the API lists, with their marketing copy.
+const featured = computed(() =>
+  catalog.finishes.value.slice(0, 2).map((finish) => collectionProduct(finish.name)),
+)
 
 const heroFinish: CardFinish = 'Black'
 const heroBackFinish: CardFinish = 'Silver'
-const heroPrice = finishes.find((item) => item.name === heroFinish)!.price
-const lowestPrice = Math.min(...finishes.map((item) => item.price))
+const heroPrice = computed(() => catalog.price(heroFinish))
+const lowestPrice = computed(() => catalog.lowestPrice.value)
 const previewDesign: CardDesign = {
   id: 'preview',
   name: 'Preview',
@@ -95,11 +101,11 @@ const steps = [
         </div>
         <div class="hero-product-caption">
           <strong>{{ heroFinish }}</strong>
-          <span class="price-text">£{{ heroPrice }}</span>
+          <span class="price-text">{{ formatMoney(heroPrice) }}</span>
         </div>
         <div class="product-footnote">
           <span>01 / The {{ heroFinish }} Collection</span>
-          <span>From £{{ lowestPrice }}</span>
+          <span>From {{ formatMoney(lowestPrice) }}</span>
         </div>
       </div>
     </section>

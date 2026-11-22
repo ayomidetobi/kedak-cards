@@ -3,12 +3,17 @@ import { computed } from 'vue'
 import CardCustomizer from '../components/card/CardCustomizer.vue'
 import { useCardCustomization } from '../composables/useCardCustomization'
 import CollectionProductCard from '../components/CollectionProductCard.vue'
+import ProductCardSkeleton from '../components/skeletons/parts/ProductCardSkeleton.vue'
 import TextLink from '../components/TextLink.vue'
-import { collectionProducts } from '../data/collectionProducts'
+import { collectionProduct } from '../data/collectionProducts'
+import { useFinishCatalog } from '../queries/catalog'
 
 const customization = useCardCustomization()
+const catalog = useFinishCatalog()
 const otherFinishes = computed(() =>
-  collectionProducts.filter((product) => product.finish !== customization.store.finish),
+  catalog.finishes.value
+    .filter((finish) => finish.name !== customization.store.finish)
+    .map((finish) => collectionProduct(finish.name)),
 )
 </script>
 
@@ -18,9 +23,17 @@ const otherFinishes = computed(() =>
     <section class="journey-main other-finishes-section" aria-labelledby="other-finishes-heading">
       <p class="eyebrow">EXPLORE THE COLLECTION</p>
       <h2 id="other-finishes-heading" class="section-title">Other finishes</h2>
-      <div class="collections-grid">
+      <p v-if="catalog.isError.value" class="api-state is-error" role="alert">
+        Finishes couldn’t load.
+        <button type="button" class="api-retry" @click="catalog.refetch()">Try again</button>
+      </p>
+      <div class="collections-grid" :aria-busy="catalog.isLoading.value">
+        <template v-if="catalog.isLoading.value">
+          <ProductCardSkeleton v-for="index in 3" :key="index" />
+        </template>
         <CollectionProductCard
           v-for="product in otherFinishes"
+          v-else
           :key="product.finish"
           v-bind="product"
         />

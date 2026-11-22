@@ -18,8 +18,12 @@ const props = withDefaults(
     previewArtworkIndex: number
     orientation?: UploadOrientation
     display?: UploadDisplay
+    /** True while files are being sent to the API. */
+    uploading?: boolean
+    /** Upload progress, 0–100. */
+    progress?: number
   }>(),
-  { orientation: 'landscape', display: 'default' },
+  { orientation: 'landscape', display: 'default', uploading: false, progress: 0 },
 )
 const emit = defineEmits<{
   upload: [files: File[]]
@@ -48,8 +52,15 @@ const assignment = computed({
 })
 const fileUploadKey = ref(0)
 
-function onSelect(event: { files: File[] }) {
-  emit('upload', [...event.files])
+// PrimeVue only passes the files it accepts and keeps its rejection messages internally, so
+// forward the raw selection: useCardCustomization validates it and explains every rejection.
+function onSelect(event: { originalEvent?: Event; files: File[] }) {
+  const original = event.originalEvent as (Event & { dataTransfer?: DataTransfer }) | undefined
+  const raw =
+    original?.dataTransfer?.files ?? (original?.target as HTMLInputElement | null)?.files ?? null
+  const selected = raw && raw.length ? Array.from(raw) : [...event.files]
+  if (!selected.length) return
+  emit('upload', selected)
   fileUploadKey.value += 1
 }
 </script>
@@ -107,8 +118,11 @@ function onSelect(event: { files: File[] }) {
           class="kedak-outline-action upload-choose-button"
           severity="secondary"
           outlined
-          :label="uploadedArtworks.length ? 'Replace artwork' : 'Choose artwork'"
-          icon="pi pi-upload"
+          :label="
+            uploading ? 'Uploading…' : uploadedArtworks.length ? 'Replace artwork' : 'Choose artwork'
+          "
+          :icon="uploading ? 'pi pi-spin pi-spinner' : 'pi pi-upload'"
+          :disabled="uploading"
           @click="chooseCallback()"
         />
       </template>
@@ -128,10 +142,22 @@ function onSelect(event: { files: File[] }) {
         </div>
       </template>
     </FileUpload>
+    <div
+      v-if="uploading"
+      class="upload-progress"
+      role="progressbar"
+      aria-label="Uploading artwork"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      :aria-valuenow="progress"
+    >
+      <span class="upload-progress-bar" :style="{ width: `${progress}%` }"></span>
+      <small>Uploading your artwork… {{ progress }}%</small>
+    </div>
     <div v-if="uploadedArtworks.length" class="uploaded-artwork-list">
       <button
         v-for="(artwork, index) in uploadedArtworks"
-        :key="artwork.url"
+        :key="artwork.id"
         type="button"
         class="uploaded-artwork-option"
         :class="{ 'is-previewed': previewArtworkIndex === index }"
@@ -139,7 +165,7 @@ function onSelect(event: { files: File[] }) {
         :aria-label="`Preview artwork ${index + 1}: ${artwork.name}`"
         @click="emit('preview', index)"
       >
-        <img :src="artwork.url" :alt="`Artwork ${index + 1}`" />
+        <img :src="artwork.previewUrl ?? artwork.url" :alt="`Artwork ${index + 1}`" />
         <span>{{ artwork.name }}</span>
       </button>
     </div>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, shallowRef } from 'vue'
+import { onBeforeUnmount, shallowRef, watch } from 'vue'
 import { useRoute, useRouter, type RouteLocationNormalized } from 'vue-router'
 import AppFooter from './components/AppFooter.vue'
 import AppHeader from './components/AppHeader.vue'
 import CartQuickView from './components/CartQuickView.vue'
 import { skeletonForRoute } from './components/skeletons'
 import Toast from 'primevue/toast'
+import { useAuthStore } from './stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,6 +39,18 @@ onBeforeUnmount(() => {
   stopAfterEach()
   stopOnError()
 })
+
+// If the session ends (expired, revoked, logged out elsewhere) on a page that needs it,
+// send the customer to log in and bring them back afterwards.
+const auth = useAuthStore()
+watch(
+  () => auth.isSignedIn,
+  (signedIn, wasSignedIn) => {
+    if (wasSignedIn && !signedIn && route.meta.requiresAuth) {
+      void router.replace({ name: 'login', query: { redirect: route.fullPath } })
+    }
+  },
+)
 
 // Before the first page has loaded, use the skeleton for the URL being opened.
 const initialSkeleton = skeletonForRoute(router.resolve(window.location.pathname).name)

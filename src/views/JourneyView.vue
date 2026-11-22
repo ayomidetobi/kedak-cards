@@ -3,11 +3,13 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
+import { useMutation } from '@tanstack/vue-query'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
+import Password from 'primevue/password'
 import RadioButton from 'primevue/radiobutton'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
@@ -17,35 +19,55 @@ import DesignCategoryTabs from '../components/card/DesignCategoryTabs.vue'
 import DesignGallery from '../components/card/DesignGallery.vue'
 import DesignUpload from '../components/card/DesignUpload.vue'
 import FinishCard from '../components/FinishCard.vue'
+import PaymentMethodPicker from '../components/checkout/PaymentMethodPicker.vue'
+import PayNowPanel from '../components/checkout/PayNowPanel.vue'
+import { usePaymentReturn } from '../composables/usePaymentReturn'
+import type { PaymentProviderId } from '../data/paymentProviders'
+import { usePaymentProviders, useStartPayment } from '../queries/payments'
 import TextLink from '../components/TextLink.vue'
-import { useCardCustomization, validateArtworkCount } from '../composables/useCardCustomization'
-import { useAuthStore } from '../stores/auth'
-import { PREVIEW_ORDER_EMAIL, useOrdersStore } from '../stores/orders'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
-import { formatOrderDate } from '../utils/orderPolicy'
 import StockBadge from '../components/StockBadge.vue'
+import { PLACEHOLDER_DESIGN, useArtworkSelection } from '../composables/useArtworkSelection'
+import { useCardCustomization, validateArtworkCount } from '../composables/useCardCustomization'
+import { useDesignLookup } from '../queries/artwork'
+import { useCartValidation } from '../queries/cart'
+import { useFinishCatalog } from '../queries/catalog'
 import {
-  designs,
-  finishes,
-  isCartItemCustomized,
-  isFinishInStock,
-} from '../stores/cardCustomization'
+  newIdempotencyKey,
+  useAccountOrders,
+  useOrderQuery,
+  usePlaceOrder,
+} from '../queries/orders'
+import { changePassword, resendVerificationEmail } from '../services/api/endpoints/auth'
+import { toCartItemInput } from '../services/api/endpoints/cart'
+import { checkCompatibility } from '../services/api/endpoints/compatibility'
+import { ApiError, errorMessage } from '../services/api/errors'
+import { useAuthStore } from '../stores/auth'
+import { isCartItemCustomized } from '../stores/cardCustomization'
+import { formatOrderDate } from '../utils/orderPolicy'
+import { formatMoney } from '../utils/money'
 import { deliveryCountryOptions, phoneCountryOptions } from '../utils/phoneCountries'
-import { checkoutSchema, compatibilitySchema } from '../types/forms'
-import type {
-  CardCartItem,
-  CardCategory,
-  CardDesign,
-  CardFinish,
-  CustomizationMode,
-  UploadedArtwork,
+import { checkoutSchema, compatibilitySchema, passwordRules } from '../types/forms'
+import {
+  MAX_ITEM_QUANTITY,
+  type CardCartItem,
+  type CardCategory,
+  type CardDesign,
+  type CardFinish,
+  type CustomizationMode,
+  type UploadedArtwork,
 } from '../types/card'
+import type { CompatibilityAnswers, Order, OrderLine, PlaceOrderRequest } from '../types/api'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const customization = useCardCustomization()
 const store = customization.store
+// Server state: artwork (cart editor), finishes/stock, and server-side cart pricing.
+const artwork = useArtworkSelection()
+const catalog = useFinishCatalog()
+const cart = useCartValidation()
 const activeCartEditId = ref<string | null>(null)
 const cartEditUploadError = ref('')
 const cartEditPreviewArtworkIndex = ref(0)
@@ -117,9 +139,11 @@ const helpFaqs = [
       'Issuer rules differ. Check your card agreement and ask your provider before sending your original payment card.',
   },
 ]
-const cartEditCategory = computed<CardCategory>({
+const cartEditCategory = computed<CardCategory | null>({
   get: () => store.category,
-  set: (category) => customization.selectCategory(category),
+  set: (category) => {
+    if (category) customization.selectCategory(category)
+  },
 })
 const cartEditMode = computed<CustomizationMode>({
   get: () => store.customizationMode,
@@ -134,8 +158,12 @@ const cartEditPreviewArtwork = computed(
 )
 const cartEditValidationMessage = computed(() => {
   if (cartEditUploadError.value) return cartEditUploadError.value
+  if (customization.isUploading.value) return 'Wait for your artwork to finish uploading.'
   if (store.customizationMode === 'custom' && store.uploadedArtworks.length === 0) {
     return 'Upload artwork before saving this custom card.'
+  }
+  if (store.customizationMode === 'preset' && !artwork.hasSelectedDesign.value) {
+    return 'Choose a design before saving.'
   }
   if (store.uploadedArtworks.length) {
     const result = validateArtworkCount(
@@ -150,36 +178,24 @@ const cartEditValidationMessage = computed(() => {
 const canSaveCartEdit = computed(
   () => activeCartEditId.value !== null && !cartEditValidationMessage.value,
 )
-const orderCustomization = computed(
-  () => store.cartItems.find((item) => item.customization)?.customization ?? store.customization,
+const galleryError = computed(() =>
+  artwork.error.value ? errorMessage(artwork.error.value, 'Designs couldn’t load.') : '',
 )
 const hasUncustomizedItems = computed(() =>
   store.cartItems.some((item) => !isCartItemCustomized(item)),
 )
 const hasOutOfStockItems = computed(() =>
-  store.cartItems.some((item) => !isFinishInStock(item.finish)),
+  store.cartItems.some((item) => cart.hasIssue(item.id, 'finish_out_of_stock')),
 )
-const inStockFinishes = finishes.filter((item) => item.inStock)
-const checkoutBlockMessage = computed(() => {
-  if (!store.cartItems.length) return 'Your cart is empty. Add a card before checkout.'
-  const reasons: string[] = []
-  if (hasOutOfStockItems.value) {
-    reasons.push(
-      'Some items are out of stock. Switch them to another finish or remove them before checkout.',
-    )
-  }
-  if (hasUncustomizedItems.value) {
-    reasons.push(
-      'Please customise every item in your cart before checkout. Edit any item marked “Not customised”.',
-    )
-  }
-  return reasons.join(' ')
+const inStockFinishes = catalog.inStockFinishes
+const checkoutBlockMessage = computed(() => cart.blockingMessages.value.join(' '))
+const cartCheckMessage = computed(() => {
+  if (!store.cartItems.length) return ''
+  if (cart.error.value) return errorMessage(cart.error.value, 'We couldn’t check your cart.')
+  if (cart.isValidating.value && !cart.isCurrent.value) return 'Checking prices and stock…'
+  return ''
 })
-const design = computed<CardDesign>(() => {
-  const order = orderCustomization.value
-  return designs[order.category].find((item) => item.id === order.designId) ?? store.selectedDesign
-})
-const total = computed(() => store.cartSubtotal + 8)
+const total = computed(() => cart.total.value)
 const hasChip = ref(store.compatibilityAnswers.hasChip)
 const compatibilityResolver = zodResolver(compatibilitySchema)
 const checkoutResolver = zodResolver(checkoutSchema)
@@ -197,12 +213,38 @@ const cardTypes = [
 ].map((label) => ({ label, value: label }))
 
 const auth = useAuthStore()
-const orders = useOrdersStore()
-// Orders placed with the signed-in customer's email (newest first).
-const accountOrders = computed(() =>
-  auth.user?.email ? orders.ordersForEmail(auth.user.email) : [],
+
+// The order just placed (GET /orders/{id} with this tab's access token or the session).
+// After Stripe/Paystack the return URL names the order: /order/confirmed?order=KD-…&payment=…
+const confirmedOrderId = computed(() =>
+  page.value === 'confirmed'
+    ? (typeof route.query.order === 'string' ? route.query.order : store.lastPlacedOrderId) ?? ''
+    : '',
 )
-const confirmedOrder = computed(() => orders.lastPlacedOrder)
+const confirmedOrderQuery = useOrderQuery(confirmedOrderId)
+const paymentReturn = usePaymentReturn(confirmedOrderId)
+const confirmedOrder = computed<Order | null>(() => confirmedOrderQuery.data.value ?? null)
+const confirmedLine = computed<OrderLine | null>(() => confirmedOrder.value?.lines[0] ?? null)
+// Designs used by cart items and the confirmed order (GET /artwork/{id}, cached).
+const designLookup = useDesignLookup(() => [
+  ...store.cartItems.flatMap((item) =>
+    item.customization?.customizationMode === 'preset' ? [item.customization.designId] : [],
+  ),
+  ...(confirmedLine.value?.customization?.customizationMode === 'preset' &&
+  confirmedLine.value.customization.designId
+    ? [confirmedLine.value.customization.designId]
+    : []),
+])
+const confirmedDesign = computed<CardDesign>(() => {
+  const designId = confirmedLine.value?.customization?.designId
+  return (designId && designLookup.value.get(designId)) || PLACEHOLDER_DESIGN
+})
+
+// Account: GET /account/orders (cursor pages).
+const accountOrdersQuery = useAccountOrders()
+const accountOrders = computed(
+  () => accountOrdersQuery.data.value?.pages.flatMap((pageData) => pageData.data) ?? [],
+)
 const accountLinks = [
   {
     to: '/collections',
@@ -243,6 +285,36 @@ async function signOutOfAccount() {
   await router.push('/')
 }
 
+// Account security: password change (dj-rest-auth) and re-sending the verification email.
+const showPasswordForm = ref(false)
+const currentPassword = ref('')
+const newPassword = ref('')
+const passwordMutation = useMutation({
+  mutationFn: () =>
+    changePassword({ oldPassword: currentPassword.value, newPassword: newPassword.value }),
+  onSuccess: () => {
+    currentPassword.value = ''
+    newPassword.value = ''
+    showPasswordForm.value = false
+    toast.add({ severity: 'success', summary: 'Password updated', life: 2600 })
+  },
+})
+const newPasswordValid = computed(() => passwordRules.every((rule) => rule.test(newPassword.value)))
+function submitPasswordChange() {
+  if (!currentPassword.value || !newPasswordValid.value || passwordMutation.isPending.value) return
+  passwordMutation.mutate()
+}
+const verificationMutation = useMutation({
+  mutationFn: () => resendVerificationEmail(auth.user?.email ?? ''),
+  onSuccess: () =>
+    toast.add({
+      severity: 'success',
+      summary: 'Verification email sent',
+      detail: 'If your email isn’t verified yet, check your inbox for a new link.',
+      life: 4000,
+    }),
+})
+
 const compatibilityNotes = [
   { icon: 'pi pi-credit-card', text: 'Your original card is required for assessment.' },
   { icon: 'pi pi-wifi', text: 'Contactless and ATM use may be affected.' },
@@ -270,12 +342,10 @@ const checkoutInitial = {
   acknowledgement: false,
 }
 
-function designForCartItem(item: CardCartItem) {
+function designForCartItem(item: CardCartItem): CardDesign {
   const saved = item.customization
-  if (!saved) return store.selectedDesign
-  return (
-    designs[saved.category].find((designItem) => designItem.id === saved.designId) ?? design.value
-  )
+  if (!saved || saved.customizationMode !== 'preset') return PLACEHOLDER_DESIGN
+  return designLookup.value.get(saved.designId) ?? PLACEHOLDER_DESIGN
 }
 
 function artworksForCartItem(item: CardCartItem): Array<UploadedArtwork | null> {
@@ -287,9 +357,11 @@ function artworksForCartItem(item: CardCartItem): Array<UploadedArtwork | null> 
 }
 
 function itemSubtotal(item: CardCartItem) {
-  const price =
-    item.customization?.price ?? finishes.find((finish) => finish.name === item.finish)!.price
-  return price * item.quantity
+  return cart.lineTotal(item.id)
+}
+
+function itemUnitPrice(item: CardCartItem) {
+  return cart.itemResult(item.id)?.unitPrice ?? null
 }
 
 function editCartItem(item: CardCartItem) {
@@ -335,6 +407,7 @@ watch(
 
 function cancelCartItemEdit(item: CardCartItem) {
   if (activeCartEditId.value !== item.id) return
+  customization.cancelUpload()
   customization.startNewCustomization(item.finish)
   activeCartEditId.value = null
   cartEditUploadError.value = ''
@@ -363,8 +436,13 @@ function setCartEditMode(mode: CustomizationMode) {
   store.setCustomizationMode(mode)
 }
 
-function handleCartEditUploads(files: File[]) {
-  const result = customization.handleUploads(files, store.artworkAssignment, store.cartQuantity)
+async function handleCartEditUploads(files: File[]) {
+  cartEditUploadError.value = ''
+  const result = await customization.handleUploads(
+    files,
+    store.artworkAssignment,
+    store.cartQuantity,
+  )
   cartEditUploadError.value = result.valid ? '' : result.message
   if (result.valid) cartEditPreviewArtworkIndex.value = 0
 }
@@ -382,6 +460,15 @@ function selectCartEditDesign(designId: string) {
 }
 
 function switchCartItemFinish(item: CardCartItem, nextFinish: CardFinish) {
+  if (!catalog.isInStock(nextFinish)) {
+    toast.add({
+      severity: 'warn',
+      summary: `${nextFinish} is out of stock`,
+      detail: 'Choose another finish.',
+      life: 3000,
+    })
+    return
+  }
   const previous = item.finish
   if (!store.changeCartItemFinish(item.id, nextFinish)) {
     toast.add({
@@ -448,7 +535,7 @@ function removeCartItem(id: string) {
 }
 
 function adjustCartItemQuantity(item: CardCartItem, amount: number) {
-  const quantity = Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, item.quantity + amount))
+  const quantity = Math.min(MAX_ITEM_QUANTITY, Math.max(1, item.quantity + amount))
   const updated = store.setCartItemQuantity(item.id, quantity)
   if (!updated) {
     toast.add({
@@ -462,46 +549,201 @@ function adjustCartItemQuantity(item: CardCartItem, amount: number) {
   if (activeCartEditId.value === item.id) store.setCartQuantity(quantity)
 }
 
-function submitCompatibility(event: FormSubmitEvent) {
-  if (!event.valid) return
-  const answers = compatibilitySchema.parse(event.values)
+// Compatibility: preliminary screening by POST /compatibility-checks. The server decides the
+// outcome; it is never presented as a guarantee of compatibility or issuer approval.
+const compatibilityMutation = useMutation({
+  mutationFn: (answers: CompatibilityAnswers) => checkCompatibility(answers),
+})
+const compatibilityError = computed(() =>
+  compatibilityMutation.error.value
+    ? errorMessage(compatibilityMutation.error.value, 'We couldn’t check your answers.')
+    : '',
+)
+const compatibilityResult = computed(() => store.compatibilityResult)
+
+async function submitCompatibility(event: FormSubmitEvent) {
+  if (!event.valid || compatibilityMutation.isPending.value) return
+  const answers = compatibilitySchema.parse(event.values) as CompatibilityAnswers
   store.setCompatibilityAnswers(answers)
-  void router.push(answers.hasChip ? '/compatibility/result' : '/manual-review')
+  try {
+    const result = await compatibilityMutation.mutateAsync(answers)
+    store.setCompatibilityResult(result)
+    void router.push(
+      result.outcome === 'eligible-for-assessment' ? '/compatibility/result' : '/manual-review',
+    )
+  } catch {
+    // compatibilityError shows the server's message.
+  }
 }
 
-// Stripe is out of scope for now: checkout places the order without taking payment
-// (the order is marked "payment not collected").
-function submitCheckout(event: FormSubmitEvent) {
-  if (!event.valid || !store.canCheckout) return
+// Checkout: POST /orders with an Idempotency-Key that stays the same while the customer
+// retries the same cart, so a lost response can't create a duplicate order.
+const placeOrder = usePlaceOrder()
+// Payment: providers enabled on the server (GET /payments/providers, with a USD/NGN estimate).
+// After POST /orders, the customer is sent to the chosen provider's hosted checkout.
+const paymentProvider = ref<PaymentProviderId | null>(null)
+const providersQuery = usePaymentProviders(() => total.value?.amount ?? null)
+const availableProviders = computed(() => providersQuery.data.value ?? [])
+const selectedProvider = computed(
+  () => availableProviders.value.find((provider) => provider.id === paymentProvider.value) ?? null,
+)
+const startPayment = useStartPayment()
+const checkoutBusy = computed(() => placeOrder.isPending.value || startPayment.isPending.value)
+const checkoutSubmitLabel = computed(() => {
+  const amount = total.value ? ` · ${formatMoney(total.value)}` : ''
+  return selectedProvider.value
+    ? `Continue to ${selectedProvider.value.name}${amount}`
+    : `Place order${amount}`
+})
+// Confirmation step state: what we know about the order and its payment.
+type ConfirmStage = 'loading' | 'missing' | 'confirming' | 'paid' | 'processing' | 'unpaid' | 'received'
+const confirmStage = computed<ConfirmStage>(() => {
+  const order = confirmedOrder.value
+  if (!order) {
+    return confirmedOrderQuery.canRequest.value && confirmedOrderQuery.isPending.value
+      ? 'loading'
+      : 'missing'
+  }
+  if (order.payment.status === 'paid') return 'paid'
+  if (paymentReturn.state.value === 'confirming') return 'confirming'
+  if (paymentReturn.state.value === 'pending') return 'processing'
+  if (order.status === 'awaiting-card' && availableProviders.value.length) return 'unpaid'
+  return 'received'
+})
+const confirmCopy = computed(() => {
+  const name = confirmedOrder.value?.customerName.split(' ')[0]
+  const thanks = name ? `Thanks, ${name}.` : 'Thank you.'
+  switch (confirmStage.value) {
+    case 'paid':
+      return { title: 'Payment received.', body: `${thanks} Your order is confirmed and your design is saved.` }
+    case 'confirming':
+      return { title: 'Confirming your payment…', body: 'This usually takes a few seconds.' }
+    case 'processing':
+      return {
+        title: 'Payment processing.',
+        body: 'We haven’t had confirmation yet. Bank transfers can take a few minutes; we’ll email you when it arrives.',
+      }
+    case 'unpaid':
+      return {
+        title: 'One step left: payment.',
+        body:
+          paymentReturn.state.value === 'cancelled'
+            ? 'Payment was cancelled. Choose a method below to try again.'
+            : 'Your order is saved. Complete payment to confirm it.',
+      }
+    default:
+      return { title: 'Order received.', body: `${thanks} Your design is saved.` }
+  }
+})
+const paymentLabel = computed(() => {
+  const payment = confirmedOrder.value?.payment
+  if (!payment) return ''
+  const via = payment.provider === 'paystack' ? 'Paystack' : payment.provider === 'stripe' ? 'Stripe' : ''
+  if (payment.status === 'paid') return via ? `Paid with ${via}` : 'Paid'
+  if (payment.status === 'refunded') return 'Refunded'
+  if (payment.status === 'partially-refunded') return 'Partly refunded'
+  return confirmStage.value === 'processing' ? 'Processing' : 'Not paid yet'
+})
+const checkoutErrors = ref<string[]>([])
+const cartPayload = computed(() => store.cartItems.map(toCartItemInput))
+let checkoutKey = newIdempotencyKey()
+watch(
+  cartPayload,
+  () => {
+    checkoutKey = newIdempotencyKey()
+  },
+  { deep: true },
+)
+
+const CHECKOUT_POINTERS: Record<string, string> = {
+  '/contact/email': 'Email',
+  '/contact/fullName': 'Full name',
+  '/contact/phone/number': 'Phone',
+  '/contact/phone/countryCode': 'Calling code',
+  '/deliveryAddress/address': 'Address',
+  '/deliveryAddress/city': 'City',
+  '/deliveryAddress/postcode': 'Postcode',
+  '/deliveryAddress/country': 'Country',
+  '/acknowledgement': 'Acknowledgement',
+}
+
+async function submitCheckout(event: FormSubmitEvent) {
+  if (!event.valid) {
+    checkoutErrors.value = ['Please complete the highlighted details above.']
+    void nextTick(() =>
+      document
+        .querySelector('.checkout-form .p-invalid, .checkout-form [aria-invalid="true"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+    )
+    return
+  }
+  if (!cart.canCheckout.value || checkoutBusy.value) return
+  if (availableProviders.value.length && !selectedProvider.value) {
+    checkoutErrors.value = ['Choose how you’d like to pay.']
+    return
+  }
+  checkoutErrors.value = []
   const details = checkoutSchema.parse(event.values)
-  const order = orders.placeOrder({
-    email: details.email,
-    customerName: details.fullName,
-    delivery: 8,
-    lines: store.cartItems.map((item) => ({
-      finish: item.finish,
-      quantity: item.quantity,
-      unitPrice: itemSubtotal(item) / item.quantity,
-      holderName: item.customization?.holderName ?? '',
-      designName:
-        item.customization?.customizationMode === 'custom'
-          ? 'Your own artwork'
-          : designForCartItem(item).name,
-      customization: item.customization,
-    })),
-  })
-  store.clearCart()
-  toast.add({
-    severity: 'success',
-    summary: 'Order placed',
-    detail: `Order ${order.id} is confirmed.`,
-    life: 3000,
-  })
-  void router.push('/order/confirmed')
+  const payload: PlaceOrderRequest = {
+    contact: {
+      email: details.email.trim(),
+      fullName: details.fullName.trim(),
+      phone: { countryCode: details.phoneCountry, number: details.phone.trim() },
+    },
+    deliveryAddress: {
+      address: details.address.trim(),
+      city: details.city.trim(),
+      postcode: details.postcode.trim(),
+      country: details.country,
+    },
+    items: cartPayload.value,
+    acknowledgement: true,
+  }
+  try {
+    const order = await placeOrder.mutateAsync({ payload, idempotencyKey: checkoutKey })
+    checkoutKey = newIdempotencyKey()
+    store.setLastPlacedOrder(order.id)
+    store.clearCart()
+    if (selectedProvider.value) {
+      try {
+        // Navigates to the provider's hosted page; we come back to /account/orders/{id}.
+        await startPayment.mutateAsync({ orderId: order.id, provider: selectedProvider.value.id })
+        return
+      } catch (paymentError) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Order placed, payment not started',
+          detail: errorMessage(paymentError, 'You can pay from your order confirmation.'),
+          life: 6000,
+        })
+      }
+    } else {
+      toast.add({
+        severity: 'success',
+        summary: 'Order placed',
+        detail: `Order ${order.id} has been received.`,
+        life: 3000,
+      })
+    }
+    void router.push('/order/confirmed')
+  } catch (error) {
+    const apiError = error instanceof ApiError ? error : null
+    if (apiError?.status === 409 || apiError?.code === 'checkout_blocked') {
+      void cart.retry() // re-price and show the server's current issues in the cart
+    }
+    const fieldMessages =
+      apiError?.fieldErrors.map((fieldError) => {
+        const label = CHECKOUT_POINTERS[fieldError.pointer]
+        return label ? `${label}: ${fieldError.message}` : fieldError.message
+      }) ?? []
+    checkoutErrors.value = fieldMessages.length
+      ? [...new Set(fieldMessages)]
+      : [errorMessage(error, 'Your order couldn’t be placed. Please try again.')]
+  }
 }
 
 function continueToCheckout() {
-  if (!store.canCheckout) return
+  if (!cart.canCheckout.value) return
   void router.push('/checkout')
 }
 </script>
@@ -618,12 +860,18 @@ function continueToCheckout() {
             }}</Message>
           </div>
         </FormField>
+        <p v-if="compatibilityError" class="upload-error" role="alert">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+          <span>{{ compatibilityError }}</span>
+        </p>
         <Button
           type="submit"
           class="kedak-action kedak-cta compat-submit"
           label="Review my answers"
           icon="pi pi-arrow-right"
           icon-pos="right"
+          :loading="compatibilityMutation.isPending.value"
+          :disabled="compatibilityMutation.isPending.value"
         />
       </Form>
       <aside class="info-card compat-aside" aria-labelledby="compat-aside-title">
@@ -650,10 +898,15 @@ function continueToCheckout() {
         </span>
         <h2>Initial check complete</h2>
       </div>
-      <p class="result-lead">Your answers suggest your card can be assessed for conversion.</p>
+      <p class="result-lead">
+        {{
+          compatibilityResult?.message ??
+          'Your answers suggest your card can be assessed for conversion.'
+        }}
+      </p>
       <p class="muted-copy">
-        Final suitability is confirmed only after we inspect your original card. This does not
-        confirm issuer approval.
+        This is a preliminary screen, not an approval. Final suitability is confirmed only after
+        we inspect your original card, and it does not confirm issuer approval.
       </p>
       <dl class="answer-list">
         <div>
@@ -666,9 +919,16 @@ function continueToCheckout() {
         </div>
         <div>
           <dt>Card</dt>
-          <dd>{{ store.compatibilityAnswers.cardType }} with chip</dd>
+          <dd>
+            {{ store.compatibilityAnswers.cardType }}
+            {{ store.compatibilityAnswers.hasChip ? 'with chip' : 'without chip' }}
+          </dd>
         </div>
       </dl>
+      <p v-if="!compatibilityResult" class="muted-copy">
+        <RouterLink to="/compatibility">Answer the quick check</RouterLink> to get a preliminary
+        result for your card.
+      </p>
       <div class="result-actions">
         <Button
           class="kedak-action kedak-cta"
@@ -699,6 +959,7 @@ function continueToCheckout() {
         </span>
         <h2>Your card needs a closer look.</h2>
       </div>
+      <p v-if="compatibilityResult?.message">{{ compatibilityResult.message }}</p>
       <p>
         Existing metal cards, chipless cards and unfamiliar card types need individual assessment.
         Please do not place an order or send your card yet.
@@ -770,10 +1031,31 @@ function continueToCheckout() {
                   {{ isCartItemCustomized(item) ? 'Customised' : 'Not customised' }}
                 </span>
                 <StockBadge
-                  v-if="!isFinishInStock(item.finish)"
+                  v-if="cart.hasIssue(item.id, 'finish_out_of_stock')"
                   class="cart-stock-badge"
                   :finish="item.finish"
                 />
+                <ul
+                  v-if="
+                    cart
+                      .issuesFor(item.id)
+                      .some(
+                        (issue) =>
+                          issue.code !== 'finish_out_of_stock' && issue.code !== 'not_customised',
+                      )
+                  "
+                  class="cart-item-issues"
+                  role="alert"
+                >
+                  <template v-for="issue in cart.issuesFor(item.id)" :key="issue.code">
+                    <li
+                      v-if="issue.code !== 'finish_out_of_stock' && issue.code !== 'not_customised'"
+                    >
+                      <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+                      {{ issue.message }}
+                    </li>
+                  </template>
+                </ul>
                 <div
                   v-if="item.customization && activeCartEditId !== item.id"
                   class="cart-product-details"
@@ -813,7 +1095,7 @@ function continueToCheckout() {
               </p>
             </div>
             <div
-              v-if="!isFinishInStock(item.finish)"
+              v-if="cart.hasIssue(item.id, 'finish_out_of_stock')"
               class="cart-stock-warning"
               role="group"
               :aria-labelledby="`cart-stock-title-${item.id}`"
@@ -839,7 +1121,7 @@ function continueToCheckout() {
                   @click="switchCartItemFinish(item, option.name)"
                 >
                   <span>Switch to {{ option.name }}</span>
-                  <strong>£{{ option.price }}</strong>
+                  <strong>{{ formatMoney(option.price) }}</strong>
                 </button>
               </div>
               <Button
@@ -896,7 +1178,7 @@ function continueToCheckout() {
               <div class="cart-customization-preview">
                 <span class="eyebrow">LIVE PREVIEW</span>
                 <CardPreview
-                  :design="store.selectedDesign"
+                  :design="artwork.selectedDesign.value"
                   :finish="store.finish"
                   :engraving-style="store.engravingStyle"
                   :holder-name="store.holderName"
@@ -910,9 +1192,12 @@ function continueToCheckout() {
                   <h3 class="control-heading">Choose a pre-designed artwork</h3>
                   <DesignCategoryTabs v-model="cartEditCategory" />
                   <DesignGallery
-                    :designs="store.gallery"
+                    :designs="artwork.gallery.value"
                     :selected-id="store.selectedDesignId"
+                    :loading="artwork.isLoading.value"
+                    :error="galleryError"
                     @select="selectCartEditDesign"
+                    @retry="artwork.retry"
                   />
                 </div>
                 <div v-else class="design-choice">
@@ -924,6 +1209,8 @@ function continueToCheckout() {
                     :preview-artwork-index="cartEditPreviewArtworkIndex"
                     :orientation="store.uploadOrientation"
                     :display="store.uploadDisplay"
+                    :uploading="customization.isUploading.value"
+                    :progress="customization.uploadProgress.value"
                     @update:assignment="store.setArtworkAssignment"
                     @update:orientation="store.setUploadOrientation"
                     @update:display="store.setUploadDisplay"
@@ -983,13 +1270,13 @@ function continueToCheckout() {
                 <button
                   type="button"
                   :aria-label="`Increase ${item.finish} quantity`"
-                  :disabled="item.quantity === Number.MAX_SAFE_INTEGER"
+                  :disabled="item.quantity === MAX_ITEM_QUANTITY"
                   @click="adjustCartItemQuantity(item, 1)"
                 >
                   <i class="pi pi-plus" aria-hidden="true"></i>
                 </button>
               </div>
-              <strong class="cart-item-total">£{{ itemSubtotal(item) }}</strong>
+              <strong class="cart-item-total">{{ formatMoney(itemSubtotal(item)) }}</strong>
             </div>
             <div
               v-if="pendingCartDeleteId === item.id"
@@ -1058,19 +1345,34 @@ function continueToCheckout() {
           class="summary-row cart-summary-item"
         >
           <span>{{ item.finish }} × {{ item.quantity }}</span>
-          <strong>£{{ itemSubtotal(item) }}</strong>
+          <strong>{{ formatMoney(itemSubtotal(item)) }}</strong>
         </div>
         <div class="summary-row cart-subtotal-row">
-          <span>Subtotal</span><strong>£{{ store.cartSubtotal }}</strong>
+          <span>Subtotal</span><strong>{{ formatMoney(cart.subtotal.value) }}</strong>
         </div>
         <div class="summary-row cart-delivery-row">
-          <span>Tracked return delivery</span><strong>£8</strong>
+          <span>Tracked return delivery</span><strong>{{ formatMoney(cart.delivery.value) }}</strong>
         </div>
         <div class="summary-total cart-total-row">
-          <strong>Total</strong><strong>£{{ total }}</strong>
+          <strong>Total</strong><strong>{{ formatMoney(total) }}</strong>
         </div>
         <p
-          v-if="hasUncustomizedItems || hasOutOfStockItems"
+          v-if="cartCheckMessage"
+          class="api-state"
+          :class="{ 'is-error': cart.error.value }"
+          role="status"
+        >
+          <i
+            :class="cart.error.value ? 'pi pi-exclamation-circle' : 'pi pi-spin pi-spinner'"
+            aria-hidden="true"
+          ></i>
+          <span>{{ cartCheckMessage }}</span>
+          <button v-if="cart.error.value" type="button" class="api-retry" @click="cart.retry()">
+            Try again
+          </button>
+        </p>
+        <p
+          v-if="(hasUncustomizedItems || hasOutOfStockItems || !cart.canCheckout.value) && checkoutBlockMessage"
           class="checkout-blocked-error"
           role="alert"
         >
@@ -1084,7 +1386,7 @@ function continueToCheckout() {
         <Button
           size="small"
           class="kedak-action cart-checkout-button"
-          :disabled="!store.canCheckout"
+          :disabled="!cart.canCheckout.value"
           label="Checkout"
           icon="pi pi-arrow-right"
           icon-pos="right"
@@ -1134,7 +1436,15 @@ function continueToCheckout() {
         Confirmation
       </li>
     </ol>
-    <section v-if="!store.canCheckout" class="notice-card checkout-blocked-panel" role="alert">
+    <section
+      v-if="
+        !store.cartItems.length ||
+        !store.allItemsCustomized ||
+        (cart.isCurrent.value && !cart.canCheckout.value)
+      "
+      class="notice-card checkout-blocked-panel"
+      role="alert"
+    >
       <span class="icon-tile result-icon is-pending" aria-hidden="true">
         <i class="pi pi-exclamation-circle"></i>
       </span>
@@ -1334,7 +1644,7 @@ function continueToCheckout() {
                 <strong>Tracked return delivery</strong>
                 <small>Dispatch estimate follows card inspection.</small>
               </span>
-              <strong class="price-text">£8</strong>
+              <strong class="price-text">{{ formatMoney(cart.delivery.value) }}</strong>
             </div>
           </section>
           <FormField v-slot="$field" name="acknowledgement">
@@ -1380,22 +1690,29 @@ function continueToCheckout() {
                 <span class="checkout-item-copy">
                   <strong>{{ item.finish }} metal card</strong>
                   <small>
-                    {{ item.quantity }} × £{{ itemSubtotal(item) / item.quantity }}
+                    {{ item.quantity }} × {{ formatMoney(itemUnitPrice(item)) }}
                     <template v-if="item.customization?.holderName">
                       · {{ item.customization.holderName }}
                     </template>
                   </small>
                 </span>
-                <strong>£{{ itemSubtotal(item) }}</strong>
+                <strong>{{ formatMoney(itemSubtotal(item)) }}</strong>
               </li>
             </ul>
             <div class="summary-row">
-              <span>Subtotal</span><strong>£{{ store.cartSubtotal }}</strong>
+              <span>Subtotal</span><strong>{{ formatMoney(cart.subtotal.value) }}</strong>
             </div>
-            <div class="summary-row"><span>Tracked return delivery</span><strong>£8</strong></div>
+            <div class="summary-row">
+              <span>Tracked return delivery</span
+              ><strong>{{ formatMoney(cart.delivery.value) }}</strong>
+            </div>
             <div class="summary-total">
-              <strong>Total</strong><strong>£{{ total }}</strong>
+              <strong>Total</strong><strong>{{ formatMoney(total) }}</strong>
             </div>
+            <p v-if="cartCheckMessage" class="api-state" role="status">
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+              <span>{{ cartCheckMessage }}</span>
+            </p>
           </section>
 
           <section class="info-card checkout-section" aria-labelledby="checkout-payment-title">
@@ -1403,25 +1720,29 @@ function continueToCheckout() {
               <span class="checkout-step-number" aria-hidden="true">3</span>
               <div>
                 <h2 id="checkout-payment-title">Payment</h2>
-                <p>Card payments are handled securely by Stripe.</p>
+                <p>Choose how you’d like to pay.</p>
               </div>
             </div>
-            <div class="stripe-payment-placeholder" role="status">
-              <i class="pi pi-lock" aria-hidden="true"></i>
+            <PaymentMethodPicker
+              v-model="paymentProvider"
+              :available="availableProviders"
+              :loading="providersQuery.isPending.value"
+            />
+            <div v-if="checkoutErrors.length" class="upload-error" role="alert">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
               <span>
-                <strong>Secure card payment with Stripe</strong>
-                <small>Stripe's payment form will be connected before checkout is enabled.</small>
+                <template v-for="(message, index) in checkoutErrors" :key="message">
+                  <br v-if="index" />{{ message }}
+                </template>
               </span>
             </div>
-            <p class="muted-copy stripe-payment-note">
-              No card details are collected and no payment is processed in this preview.
-            </p>
             <Button
               type="submit"
               class="kedak-action checkout-submit"
-              :label="`Place order & pay £${total}`"
+              :label="checkoutSubmitLabel"
               icon="pi pi-lock"
-              :disabled="!store.canCheckout"
+              :loading="checkoutBusy"
+              :disabled="!cart.canCheckout.value || checkoutBusy"
             />
           </section>
 
@@ -1444,68 +1765,147 @@ function continueToCheckout() {
     </Form>
   </main>
 
-  <main v-else-if="page === 'confirmed'" class="journey-main" data-node-id="6:90">
-    <p class="eyebrow">
-      {{ confirmedOrder ? `ORDER ${confirmedOrder.id} / CONFIRMED` : 'ORDER CONFIRMED' }}
-    </p>
-    <h1 class="page-title">Your next chapter<br />is metal.</h1>
-    <p class="intro-copy">
-      Thanks{{
-        confirmedOrder?.customerName ? `, ${confirmedOrder.customerName.split(' ')[0]}` : ''
-      }}. Your design is saved. Now let’s get your card ready for its transformation.
-    </p>
-    <section class="info-card confirmation-card">
-      <CardPreview
-        :design="design"
-        :finish="orderCustomization.finish"
-        :engraving-style="orderCustomization.engravingStyle"
-        :holder-name="orderCustomization.holderName"
-        :uploaded-artwork="orderCustomization.uploadedArtwork"
-        :upload-orientation="orderCustomization.uploadOrientation"
-        :upload-display="orderCustomization.uploadDisplay"
-      />
-      <strong class="confirmation-total">£{{ confirmedOrder?.total ?? total }}</strong>
-      <p v-if="confirmedOrder" class="muted-copy">
-        Order confirmation sent to<br />{{ confirmedOrder.email }}
+  <main v-else-if="page === 'confirmed'" class="journey-main confirm-main">
+    <ol class="checkout-progress confirm-progress" aria-label="Checkout progress">
+      <li class="is-done">
+        <span class="checkout-progress-marker" aria-hidden="true"><i class="pi pi-check"></i></span>
+        Cart
+      </li>
+      <li class="is-done">
+        <span class="checkout-progress-marker" aria-hidden="true"><i class="pi pi-check"></i></span>
+        Details &amp; payment
+      </li>
+      <li :class="confirmStage === 'paid' || confirmStage === 'received' ? 'is-done' : 'is-current'" aria-current="step">
+        <span class="checkout-progress-marker" aria-hidden="true">
+          <i v-if="confirmStage === 'paid' || confirmStage === 'received'" class="pi pi-check"></i>
+          <template v-else>3</template>
+        </span>
+        Confirmation
+      </li>
+    </ol>
+
+    <section
+      v-if="confirmStage === 'loading'"
+      class="info-card confirm-hero"
+      aria-busy="true"
+    >
+      <span class="confirm-hero-icon" aria-hidden="true"><i class="pi pi-spin pi-spinner"></i></span>
+      <h1 class="confirm-hero-title">Loading your order…</h1>
+    </section>
+
+    <section v-else-if="confirmStage === 'missing'" class="info-card confirm-hero">
+      <span class="confirm-hero-icon" aria-hidden="true"><i class="pi pi-envelope"></i></span>
+      <h1 class="confirm-hero-title">Your order details are in your email.</h1>
+      <p class="confirm-hero-copy">
+        <RouterLink to="/orders/find">Find your order</RouterLink> with its reference and the email
+        you used at checkout.
       </p>
     </section>
-    <p class="checkout-account-note confirmation-cancel-note">
-      <i class="pi pi-info-circle" aria-hidden="true"></i>
-      <span>
-        Changed your mind? You can cancel for a full refund until we start converting your card —
-        from your order page{{ auth.isSignedIn ? ' or your account' : '' }}.
-      </span>
-    </p>
-    <div class="process-list">
-      <article class="info-card">
-        <strong>01 &nbsp;Read your send-in guide</strong>
-        <p>Review packing instructions and issuer terms before sending anything.</p>
-      </article>
-      <article class="info-card">
-        <strong>02 &nbsp;Send with tracking</strong>
-        <p>Use the address and packing guidance in your order. Keep your tracking receipt.</p>
-      </article>
-      <article class="info-card">
-        <strong>03 &nbsp;We assess, then convert</strong>
-        <p>We inspect your original card before production and keep you updated.</p>
-      </article>
-    </div>
-    <Button
-      size="small"
-      class="kedak-action"
-      label="View or manage my order"
-      icon="pi pi-arrow-up-right"
-      icon-pos="right"
-      @click="router.push(orderLink)"
-    />
-    <Button
-      size="small"
-      class="kedak-outline-action"
-      severity="secondary"
-      outlined
-      label="How the process works"
-      @click="router.push('/help')"
-    />
+
+    <template v-else-if="confirmedOrder">
+      <section class="info-card confirm-hero" :class="`is-${confirmStage}`" aria-live="polite">
+        <span class="confirm-hero-icon" aria-hidden="true">
+          <i
+            :class="{
+              'pi pi-spin pi-spinner': confirmStage === 'confirming',
+              'pi pi-check': confirmStage === 'paid' || confirmStage === 'received',
+              'pi pi-clock': confirmStage === 'processing',
+              'pi pi-wallet': confirmStage === 'unpaid',
+            }"
+          ></i>
+        </span>
+        <p class="eyebrow">ORDER {{ confirmedOrder.id }}</p>
+        <h1 class="confirm-hero-title">{{ confirmCopy.title }}</h1>
+        <p class="confirm-hero-copy">{{ confirmCopy.body }}</p>
+        <dl class="confirm-facts">
+          <div>
+            <dt>Total</dt>
+            <dd>{{ formatMoney(confirmedOrder.total) }}</dd>
+          </div>
+          <div>
+            <dt>Payment</dt>
+            <dd>
+              <span class="confirm-pill" :class="`is-${confirmedOrder.payment.status}`">
+                {{ paymentLabel }}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>Updates to</dt>
+            <dd>{{ confirmedOrder.email }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <PayNowPanel v-if="confirmStage === 'unpaid'" :order="confirmedOrder" />
+
+      <div class="confirm-layout">
+        <section v-if="confirmedLine" class="info-card confirm-card" aria-label="Your card">
+          <CardPreview
+            :design="confirmedDesign"
+            :finish="confirmedLine.finish"
+            :engraving-style="confirmedLine.customization?.engravingStyle ?? 'name'"
+            :holder-name="confirmedLine.holderName"
+            :uploaded-artwork="confirmedLine.customization?.uploadedArtworks?.[0] ?? null"
+            :upload-orientation="confirmedLine.customization?.uploadOrientation"
+            :upload-display="confirmedLine.customization?.uploadDisplay"
+            :show-design-mark="false"
+          />
+          <ul class="confirm-lines">
+            <li v-for="(line, index) in confirmedOrder.lines" :key="index">
+              <span>{{ line.finish }} metal card × {{ line.quantity }}</span>
+              <strong>{{ formatMoney(line.unitPrice.amount * line.quantity) }}</strong>
+            </li>
+          </ul>
+        </section>
+
+        <section class="info-card confirm-next" aria-labelledby="confirm-next-title">
+          <h2 id="confirm-next-title">What happens next</h2>
+          <ol class="confirm-steps">
+            <li>
+              <strong>Read your send-in guide</strong>
+              <span>Packing instructions and the address arrive by email.</span>
+            </li>
+            <li>
+              <strong>Post your card with tracking</strong>
+              <span>Never include your PIN or security code.</span>
+            </li>
+            <li>
+              <strong>We assess, convert and return it</strong>
+              <span>Inspection comes first; nothing is converted until your card is suitable.</span>
+            </li>
+          </ol>
+          <p class="confirm-notify">
+            <i class="pi pi-bell" aria-hidden="true"></i>
+            <span>
+              We’ll email you at every important step: payment, card received, dispatch with
+              tracking, and delivery.
+            </span>
+          </p>
+        </section>
+      </div>
+
+      <div class="confirm-actions">
+        <Button
+          class="kedak-action"
+          label="View my order"
+          icon="pi pi-arrow-right"
+          icon-pos="right"
+          @click="router.push(orderLink)"
+        />
+        <Button
+          class="kedak-outline-action"
+          severity="secondary"
+          outlined
+          label="How the process works"
+          @click="router.push('/help')"
+        />
+      </div>
+      <p class="confirm-footnote">
+        Changed your mind? You can cancel for a full refund until conversion starts, from your
+        order page{{ auth.isSignedIn ? ' or your account' : '' }}.
+      </p>
+    </template>
   </main>
 
   <main v-else-if="page === 'account'" class="journey-main account-main">
@@ -1535,34 +1935,50 @@ function continueToCheckout() {
             </span>
           </div>
 
-          <ul v-if="accountOrders.length" class="account-order-list">
+          <p v-if="accountOrdersQuery.isPending.value" class="api-state" aria-busy="true">
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading your orders…
+          </p>
+          <p v-else-if="accountOrdersQuery.isError.value" class="api-state is-error" role="alert">
+            {{ errorMessage(accountOrdersQuery.error.value, 'Your orders couldn’t load.') }}
+            <button type="button" class="api-retry" @click="accountOrdersQuery.refetch()">
+              Try again
+            </button>
+          </p>
+          <ul v-else-if="accountOrders.length" class="account-order-list">
             <li v-for="order in accountOrders" :key="order.id">
               <RouterLink :to="`/account/orders/${order.id}`" class="account-order-row">
                 <span class="account-order-row-main">
                   <strong>Order {{ order.id }}</strong>
-                  <small>
-                    Placed {{ formatOrderDate(order.placedAt) }} ·
-                    {{ order.lines.map((line) => `${line.finish} × ${line.quantity}`).join(', ') }}
-                  </small>
+                  <small> Placed {{ formatOrderDate(order.placedAt) }} · {{ order.itemsSummary }} </small>
                 </span>
                 <span class="account-order-row-meta">
                   <OrderStatusBadge :status="order.status" />
-                  <strong>£{{ order.total }}</strong>
+                  <strong>{{ formatMoney(order.total) }}</strong>
                 </span>
                 <i class="pi pi-chevron-right account-link-chevron" aria-hidden="true"></i>
               </RouterLink>
             </li>
           </ul>
+          <Button
+            v-if="accountOrdersQuery.hasNextPage.value"
+            size="small"
+            class="kedak-outline-action"
+            severity="secondary"
+            outlined
+            label="Load more orders"
+            :loading="accountOrdersQuery.isFetchingNextPage.value"
+            @click="accountOrdersQuery.fetchNextPage()"
+          />
 
-          <div v-else class="account-orders-empty">
+          <div v-if="accountOrdersQuery.isSuccess.value && !accountOrders.length" class="account-orders-empty">
             <span class="icon-tile" aria-hidden="true"><i class="pi pi-box"></i></span>
             <p>
               <strong>No orders yet.</strong> Orders placed with
               {{ auth.user?.email || 'your email' }} will appear here.
             </p>
             <p class="muted-copy">
-              Preview: sign in as {{ PREVIEW_ORDER_EMAIL }} to see sample orders, or
-              <RouterLink to="/orders/find">find an order</RouterLink> by reference.
+              Checked out as a guest with another email?
+              <RouterLink to="/orders/find">Find an order</RouterLink> by reference.
             </p>
             <Button
               class="kedak-action kedak-cta"
@@ -1602,6 +2018,75 @@ function continueToCheckout() {
                 auth.user?.provider === 'google' ? 'Signed in with Google' : 'Email and password'
               }}
             </span>
+          </div>
+          <div v-if="auth.user?.provider !== 'google'" class="account-security-actions">
+            <Button
+              size="small"
+              class="kedak-outline-action"
+              severity="secondary"
+              outlined
+              :label="showPasswordForm ? 'Cancel' : 'Change password'"
+              icon="pi pi-key"
+              @click="showPasswordForm = !showPasswordForm"
+            />
+            <form
+              v-if="showPasswordForm"
+              class="account-password-form"
+              novalidate
+              @submit.prevent="submitPasswordChange"
+            >
+              <FloatLabel class="auth-float-label" variant="in">
+                <Password
+                  v-model="currentPassword"
+                  input-id="account-current-password"
+                  :feedback="false"
+                  toggle-mask
+                  :input-props="{ autocomplete: 'current-password' }"
+                />
+                <label for="account-current-password">Current password</label>
+              </FloatLabel>
+              <FloatLabel class="auth-float-label" variant="in">
+                <Password
+                  v-model="newPassword"
+                  input-id="account-new-password"
+                  :feedback="false"
+                  toggle-mask
+                  :invalid="Boolean(newPassword) && !newPasswordValid"
+                  :input-props="{ autocomplete: 'new-password' }"
+                />
+                <label for="account-new-password">New password</label>
+              </FloatLabel>
+              <small class="muted-copy">
+                At least 8 characters, including a letter and a number.
+              </small>
+              <p v-if="passwordMutation.error.value" class="upload-error" role="alert">
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+                <span>{{
+                  errorMessage(passwordMutation.error.value, 'Your password couldn’t be changed.')
+                }}</span>
+              </p>
+              <Button
+                type="submit"
+                size="small"
+                class="kedak-action"
+                label="Update password"
+                :loading="passwordMutation.isPending.value"
+                :disabled="!currentPassword || !newPasswordValid"
+              />
+            </form>
+            <Button
+              size="small"
+              class="kedak-outline-action"
+              severity="secondary"
+              text
+              label="Resend verification email"
+              icon="pi pi-envelope"
+              :loading="verificationMutation.isPending.value"
+              @click="verificationMutation.mutate()"
+            />
+            <small v-if="verificationMutation.error.value" class="auth-field-error" role="alert">
+              {{ errorMessage(verificationMutation.error.value) }}
+            </small>
           </div>
         </section>
 
@@ -1704,99 +2189,4 @@ function continueToCheckout() {
     </section>
   </main>
 
-  <main v-else-if="page === 'operations'" class="journey-main ops-main">
-    <p class="eyebrow">KEDAK / OPERATIONS / INTERNAL</p>
-    <h1 class="page-title">The workbench.</h1>
-    <p class="muted-copy">Production overview · 21 November 2026</p>
-    <div class="ops-stat-grid">
-      <div class="info-card"><strong>12</strong><small>Open</small></div>
-      <div class="info-card"><strong>4</strong><small>In craft</small></div>
-      <div class="info-card"><strong>3</strong><small>In QC</small></div>
-    </div>
-    <section class="info-card">
-      <h2>Today’s queue</h2>
-      <p class="muted-copy">Filter: Active orders</p>
-      <article
-        v-for="job in [
-          ['KD-2048', 'Alex Morgan', 'Black', 'Awaiting card'],
-          ['KD-2044', 'Jamie Taylor', 'Black', 'Quality check'],
-          ['KD-2041', 'Sam Ellis', 'Silver', 'Quality check'],
-        ]"
-        :key="job[0]"
-        class="queue-row"
-      >
-        <div>
-          <strong>{{ job[0] }}</strong><small>{{ job[1] }} · {{ job[2] }}</small>
-        </div>
-        <span class="status-pill">{{ job[3] }}</span><Button
-          v-if="job[0] === 'KD-2044'"
-          size="small"
-          class="kedak-outline-action"
-          severity="secondary"
-          outlined
-          label="Open production job"
-          @click="router.push('/ops/quality-check')"
-        />
-      </article>
-    </section>
-    <section class="info-card">
-      <p class="eyebrow">ACTIVE JOB / KD-2044</p>
-      <h2>Ready for quality check.</h2>
-      <p>Jamie Taylor · Black collection</p>
-      <p><span class="checkmark">✓</span> Original card received &amp; logged</p>
-      <p><span class="checkmark">✓</span> Physical compatibility assessed</p>
-      <p><span class="checkmark">✓</span> Artwork approved</p>
-      <p><span class="checkmark">✓</span> Engraving complete</p>
-      <p>○ Chip transfer &amp; quality check</p>
-      <Button
-        size="small"
-        class="kedak-action"
-        label="Open quality check"
-        icon="pi pi-arrow-up-right"
-        icon-pos="right"
-        @click="router.push('/ops/quality-check')"
-      />
-    </section>
-    <section class="info-card">
-      <h2>Recent activity</h2>
-      <p class="muted-copy">
-        10:42 &nbsp; KD-2044 moved to engraving<br />10:18 &nbsp; KD-2041 entered quality check<br />09:56
-        &nbsp; KD-2048 order confirmed
-      </p>
-    </section>
-    <p class="legal-note">
-      Restricted workspace. No customer PINs, CVVs or full card numbers are stored.
-    </p>
-  </main>
-
-  <main v-else class="journey-main ops-main">
-    <p class="eyebrow">OPERATIONS / KD-2044</p>
-    <h1 class="page-title">Ready for<br />quality check.</h1>
-    <section class="info-card qc-card">
-      <span class="status-pill">Engraving completed</span>
-      <h2>Jamie Taylor</h2>
-      <p class="muted-copy">Black collection · Name-only engraving</p>
-      <p><span class="checkmark">✓</span> &nbsp; Original card logged</p>
-      <p><span class="checkmark">✓</span> &nbsp; Card assessed</p>
-      <p><span class="checkmark">✓</span> &nbsp; Artwork approved</p>
-      <p><span class="checkmark">✓</span> &nbsp; Engraving completed</p>
-      <p>○ &nbsp; Chip transfer verification</p>
-      <p>○ &nbsp; Functional checks</p>
-      <p>○ &nbsp; Packaging &amp; dispatch approval</p>
-      <p class="muted-copy">
-        Quality checks require a physical inspection. No dispatch is released automatically.
-      </p>
-    </section>
-    <Button
-      size="small"
-      class="kedak-outline-action"
-      severity="secondary"
-      outlined
-      label="Return to production queue"
-      @click="router.push('/ops')"
-    />
-    <p class="legal-note">
-      Internal workspace. Staff access only. Never record PINs, CVVs or full card numbers.
-    </p>
-  </main>
 </template>

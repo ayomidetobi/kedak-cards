@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import type { CardFinish } from '../types/card'
-import { finishes } from '../stores/cardCustomization'
+import { computed } from 'vue'
+import type { CardDesign, CardFinish } from '../types/card'
+import { useFinishCatalog } from '../queries/catalog'
+import { formatMoney } from '../utils/money'
 import CardPreview from './card/CardPreview.vue'
-import type { CardDesign } from '../types/card'
 
 const props = withDefaults(defineProps<{ finish: CardFinish; showDesignMark?: boolean }>(), {
   showDesignMark: false,
 })
 const sampleDesign: CardDesign = { id: 'preview', name: 'Preview', category: 'Anime', number: '01' }
-
-function finishPrice(finish: CardFinish) {
-  return finishes.find((item) => item.name === finish)!.price
-}
+const catalog = useFinishCatalog()
+const price = computed(() => catalog.price(props.finish))
 </script>
 
 <template>
@@ -25,6 +24,7 @@ function finishPrice(finish: CardFinish) {
   />
   <div class="finish-card-caption">
     <strong>{{ props.finish }}</strong>
-    <span>£{{ finishPrice(props.finish) }}</span>
+    <span v-if="price">{{ formatMoney(price) }}</span>
+    <span v-else class="price-pending" aria-label="Price loading">—</span>
   </div>
 </template>

@@ -90,21 +90,46 @@ export const router = createRouter({
       component: () => import('./views/PolicyView.vue'),
     },
     { path: '/policies', redirect: '/policies/refunds' },
+    // Links in Django's emails: ${FRONTEND_URL}/reset-password?uid=…&token=… and /verify-email?key=…
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('./views/PasswordResetView.vue'),
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('./views/PasswordResetView.vue'),
+    },
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('./views/VerifyEmailView.vue'),
+    },
     { path: '/help', name: 'help', component: () => import('./views/JourneyView.vue') },
-    { path: '/ops', name: 'operations', component: () => import('./views/JourneyView.vue') },
+    // Staff pages: sign-in is required here; the staff role itself is enforced by the API.
+    {
+      path: '/ops',
+      name: 'operations',
+      component: () => import('./views/OpsView.vue'),
+      meta: { requiresAuth: true },
+    },
     {
       path: '/ops/quality-check',
       name: 'quality-check',
-      component: () => import('./views/JourneyView.vue'),
+      component: () => import('./views/OpsView.vue'),
+      meta: { requiresAuth: true },
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
 // Accounts are optional: guest checkout and order tracking never require sign-in.
-// Only the account dashboard does, and signed-in users skip the login/sign-up screens.
-router.beforeEach((to) => {
+// Only the account dashboard (and staff pages) do, and signed-in users skip login/sign-up.
+// The guard waits for GET /auth/me only on routes that depend on the session.
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  if (to.meta.requiresAuth || to.meta.guestOnly) await auth.ensureSession()
   if (to.meta.requiresAuth && !auth.isSignedIn) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }

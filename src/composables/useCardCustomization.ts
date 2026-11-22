@@ -1,12 +1,18 @@
+import { computed, onScopeDispose, ref } from 'vue'
+import { useMutation } from '@tanstack/vue-query'
+import { uploadArtwork } from '../services/api/endpoints/uploads'
+import { errorMessage } from '../services/api/errors'
 import { useCardCustomizationStore } from '../stores/cardCustomization'
-import type { ArtworkAssignment, CardCategory, CardFinish } from '../types/card'
+import type { ArtworkAssignment, CardCategory, CardFinish, UploadedArtwork } from '../types/card'
 
 export type UploadValidationResult = { valid: true } | { valid: false; message: string }
 
+/** Mirrors the API's limits (apps/uploads/validators.py); the server re-checks every file. */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+export const ALLOWED_UPLOAD_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
 
 export function validateUpload(file: File): UploadValidationResult {
-  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+  if (!(ALLOWED_UPLOAD_TYPES as readonly string[]).includes(file.type)) {
     return { valid: false, message: 'Choose a PNG, JPEG or WebP image.' }
   }
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -51,8 +57,40 @@ export function validateUploads(
   return validateArtworkCount(files.length, assignment, quantity)
 }
 
+function createPreviewUrl(file: File) {
+  return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : undefined
+}
+
 export function useCardCustomization() {
   const store = useCardCustomizationStore()
+  const uploadProgress = ref(0)
+  let uploadController: AbortController | null = null
+
+  const uploadMutation = useMutation({
+    mutationFn: async (files: File[]): Promise<UploadedArtwork[]> => {
+      uploadController?.abort()
+      const controller = new AbortController()
+      uploadController = controller
+      const totalBytes = files.reduce((sum, file) => sum + file.size, 0) || 1
+      let doneBytes = 0
+      uploadProgress.value = 0
+      const uploaded: UploadedArtwork[] = []
+      for (const file of files) {
+        const artwork = await uploadArtwork(file, {
+          signal: controller.signal,
+          onProgress: (fraction) => {
+            uploadProgress.value = (doneBytes + fraction * file.size) / totalBytes
+          },
+        })
+        doneBytes += file.size
+        uploaded.push({ ...artwork, previewUrl: createPreviewUrl(file) })
+      }
+      uploadProgress.value = 1
+      return uploaded
+    },
+  })
+
+  onScopeDispose(() => uploadController?.abort())
 
   function selectCategory(category: CardCategory) {
     store.selectCategory(category)
@@ -67,24 +105,31 @@ export function useCardCustomization() {
     store.setHolderName(value)
   }
 
-  function handleUploads(
+  /**
+   * Validates the files locally (type, size, count), uploads them to the API and only then
+   * replaces the current artwork. Server rejections (415/413/422) come back as messages.
+   */
+  async function handleUploads(
     files: File[],
     assignment: ArtworkAssignment,
     quantity: number,
-  ): UploadValidationResult {
+  ): Promise<UploadValidationResult> {
     const result = validateUploads(files, assignment, quantity)
     if (!result.valid) return result
 
-    removeUploads()
-    store.setUploadedArtworks(
-      files.map((file) => ({
-        name: file.name,
-        size: file.size,
-        type: file.type as 'image/png' | 'image/jpeg' | 'image/webp',
-        url: URL.createObjectURL(file),
-      })),
-    )
-    return result
+    try {
+      const uploaded = await uploadMutation.mutateAsync(files)
+      removeUploads()
+      store.setUploadedArtworks(uploaded)
+      return { valid: true }
+    } catch (error) {
+      return { valid: false, message: errorMessage(error, 'Your artwork couldn’t be uploaded.') }
+    }
+  }
+
+  function cancelUpload() {
+    uploadController?.abort()
+    uploadMutation.reset()
   }
 
   function removeUploads() {
@@ -93,15 +138,18 @@ export function useCardCustomization() {
     revokeUnusedArtworks(previousArtworks)
   }
 
-  function revokeUnusedArtworks(artworks: { url: string }[]) {
-    const retainedUrls = new Set(
+  /** Frees local preview URLs that no draft or cart item still uses. */
+  function revokeUnusedArtworks(artworks: UploadedArtwork[]) {
+    const retained = new Set(
       [
         ...store.uploadedArtworks,
         ...store.cartItems.flatMap((item) => item.customization?.uploadedArtworks ?? []),
-      ].map((artwork) => artwork.url),
+      ].map((artwork) => artwork.previewUrl),
     )
     artworks.forEach((artwork) => {
-      if (!retainedUrls.has(artwork.url)) URL.revokeObjectURL(artwork.url)
+      if (artwork.previewUrl && !retained.has(artwork.previewUrl)) {
+        URL.revokeObjectURL(artwork.previewUrl)
+      }
     })
   }
 
@@ -136,10 +184,13 @@ export function useCardCustomization() {
 
   return {
     store,
+    isUploading: computed(() => uploadMutation.isPending.value),
+    uploadProgress: computed(() => Math.round(uploadProgress.value * 100)),
     selectCategory,
     selectDesign,
     updateHolderName,
     handleUploads,
+    cancelUpload,
     removeUploads,
     startNewCustomization,
     beginEditingCartItem,

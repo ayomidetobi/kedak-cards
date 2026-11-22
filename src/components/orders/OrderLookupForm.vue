@@ -3,32 +3,37 @@ import { ref } from 'vue'
 import Button from 'primevue/button'
 import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
-import { PREVIEW_ORDER_EMAIL, useOrdersStore } from '../../stores/orders'
-import type { Order } from '../../types/order'
+import { useLookupOrder } from '../../queries/orders'
+import { ApiError, errorMessage } from '../../services/api/errors'
+import type { Order } from '../../types/api'
 
 const props = withDefaults(defineProps<{ initialReference?: string }>(), { initialReference: '' })
 const emit = defineEmits<{ found: [order: Order] }>()
 
-const orders = useOrdersStore()
+// POST /orders/lookup: reference + checkout email → the order and a guest access token
+// (kept in memory only; see services/api/orderAccess.ts).
+const lookup = useLookupOrder()
 const reference = ref(props.initialReference)
 const email = ref('')
 const error = ref('')
 
-function submit() {
+async function submit() {
+  if (lookup.isPending.value) return
   error.value = ''
   if (!reference.value.trim() || !/^\S+@\S+\.\S+$/.test(email.value.trim())) {
     error.value = 'Enter your order reference and the email address you used at checkout.'
     return
   }
-  const order = orders.findOrder(reference.value, email.value)
-  if (!order) {
-    // Same message whether the reference or the email is wrong, so orders can't be probed.
+  try {
+    const order = await lookup.mutateAsync({ reference: reference.value, email: email.value })
+    emit('found', order)
+  } catch (cause) {
+    // The API answers the same 404 whether the reference or the email is wrong.
     error.value =
-      'We couldn’t find an order with those details. Check the reference in your confirmation email.'
-    return
+      cause instanceof ApiError && cause.status === 404
+        ? 'We couldn’t find an order with those details. Check the reference in your confirmation email.'
+        : errorMessage(cause, 'We couldn’t look up your order. Please try again.')
   }
-  orders.grantAccess(order.id)
-  emit('found', order)
 }
 </script>
 
@@ -63,10 +68,8 @@ function submit() {
       class="kedak-action auth-submit"
       label="Find my order"
       icon="pi pi-search"
+      :loading="lookup.isPending.value"
+      :disabled="lookup.isPending.value"
     />
-    <p class="muted-copy order-lookup-preview">
-      Preview: try <strong>KD-2051</strong>, <strong>KD-2048</strong> or
-      <strong>KD-1987</strong> with {{ PREVIEW_ORDER_EMAIL }}.
-    </p>
   </form>
 </template>

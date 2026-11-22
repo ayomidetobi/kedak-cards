@@ -5,7 +5,11 @@ import Button from 'primevue/button'
 import { useToast } from 'primevue/usetoast'
 import StockBadge from '../StockBadge.vue'
 import TextLink from '../TextLink.vue'
-import { isFinishInStock } from '../../stores/cardCustomization'
+import { useArtworkSelection } from '../../composables/useArtworkSelection'
+import { useFinishCatalog } from '../../queries/catalog'
+import { errorMessage } from '../../services/api/errors'
+import { MAX_ITEM_QUANTITY } from '../../types/card'
+import { formatMoney } from '../../utils/money'
 import CardPreview from './CardPreview.vue'
 import CardholderNameInput from './CardholderNameInput.vue'
 import DesignCategoryTabs from './DesignCategoryTabs.vue'
@@ -16,6 +20,8 @@ import RadioButton from 'primevue/radiobutton'
 import type { CustomizationMode } from '../../types/card'
 
 const customization = useCardCustomization()
+const artwork = useArtworkSelection()
+const catalog = useFinishCatalog()
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
@@ -26,7 +32,9 @@ const previewArtworkIndex = ref(0)
 
 const category = computed({
   get: () => customization.store.category,
-  set: (value) => customization.selectCategory(value),
+  set: (value) => {
+    if (value) customization.selectCategory(value)
+  },
 })
 const customizationMode = computed({
   get: () => customization.store.customizationMode,
@@ -59,22 +67,48 @@ const visibleUploadError = computed(() => {
   }
   return ''
 })
-// Out-of-stock finishes can't be added as new items (edits to an existing cart item still save).
+// Stock is the server's (GET /finishes). Out-of-stock finishes can't be added as new items
+// (edits to an existing cart item still save; the cart then asks to switch finish).
 const stockNote = computed(() =>
-  isFinishInStock(customization.store.finish) || customization.store.editingCartItemId
+  catalog.isLoading.value ||
+  catalog.isInStock(customization.store.finish) ||
+  customization.store.editingCartItemId
     ? ''
     : `${customization.store.finish} is out of stock and can’t be added to the cart. Choose one of the other finishes below.`,
 )
+const catalogNote = computed(() =>
+  catalog.isLoading.value
+    ? 'Loading prices and stock…'
+    : catalog.isError.value
+      ? errorMessage(catalog.error.value, 'Prices and stock couldn’t load.')
+      : '',
+)
+const designNote = computed(() =>
+  customization.store.customizationMode === 'preset' && !artwork.hasSelectedDesign.value
+    ? 'Choose a design before adding your card to the cart.'
+    : '',
+)
 const addToCartDisabledReason = computed(
-  () => stockNote.value || visibleUploadError.value || editError.value,
+  () =>
+    catalogNote.value ||
+    stockNote.value ||
+    designNote.value ||
+    (customization.isUploading.value ? 'Wait for your artwork to finish uploading.' : '') ||
+    visibleUploadError.value ||
+    editError.value,
 )
 const canAddToCart = computed(() => !addToCartDisabledReason.value)
-const quantityTotal = computed(
-  () => customization.store.selectedFinish.price * customization.store.cartQuantity,
+const unitPrice = computed(() => catalog.price(customization.store.finish))
+const quantityTotal = computed(() =>
+  unitPrice.value ? unitPrice.value.amount * customization.store.cartQuantity : null,
+)
+const galleryError = computed(() =>
+  artwork.error.value ? errorMessage(artwork.error.value, 'Designs couldn’t load.') : '',
 )
 
-function handleUpload(files: File[]) {
-  const result = customization.handleUploads(
+async function handleUpload(files: File[]) {
+  uploadError.value = ''
+  const result = await customization.handleUploads(
     files,
     customization.store.artworkAssignment,
     customization.store.cartQuantity,
@@ -105,7 +139,7 @@ function selectDesign(designId: string) {
 
 function updateQuantity(amount: number) {
   const nextQuantity = Math.min(
-    Number.MAX_SAFE_INTEGER,
+    MAX_ITEM_QUANTITY,
     Math.max(1, customization.store.cartQuantity + amount),
   )
   customization.store.setCartQuantity(nextQuantity)
@@ -205,7 +239,7 @@ watch(
           </span>
         </div>
         <CardPreview
-          :design="customization.store.selectedDesign"
+          :design="artwork.selectedDesign.value"
           :finish="customization.store.finish"
           :engraving-style="customization.store.engravingStyle"
           :holder-name="customization.store.holderName"
@@ -229,9 +263,12 @@ watch(
           <h2 class="control-heading">Choose a pre-designed artwork</h2>
           <DesignCategoryTabs v-model="category" />
           <DesignGallery
-            :designs="customization.store.gallery"
+            :designs="artwork.gallery.value"
             :selected-id="customization.store.selectedDesignId"
+            :loading="artwork.isLoading.value"
+            :error="galleryError"
             @select="selectDesign"
+            @retry="artwork.retry"
           />
         </div>
         <div v-else class="design-choice">
@@ -243,6 +280,8 @@ watch(
             :preview-artwork-index="previewArtworkIndex"
             :orientation="customization.store.uploadOrientation"
             :display="customization.store.uploadDisplay"
+            :uploading="customization.isUploading.value"
+            :progress="customization.uploadProgress.value"
             @update:assignment="customization.store.setArtworkAssignment"
             @update:orientation="customization.store.setUploadOrientation"
             @update:display="customization.store.setUploadDisplay"
@@ -259,7 +298,8 @@ watch(
         <section class="price-card">
           <div class="price-heading">
             <span>Your conversion</span>
-            <strong>£{{ customization.store.customization.price }}</strong>
+            <strong v-if="unitPrice">{{ formatMoney(unitPrice) }}</strong>
+            <strong v-else class="price-pending" aria-label="Price loading">—</strong>
           </div>
           <p>Per card. Name and engraving included. Return delivery calculated at checkout.</p>
           <div class="customizer-quantity-row">
@@ -274,7 +314,12 @@ watch(
                 <i class="pi pi-minus" aria-hidden="true"></i>
               </button>
               <output aria-live="polite">{{ customization.store.cartQuantity }}</output>
-              <button type="button" aria-label="Increase card quantity" @click="updateQuantity(1)">
+              <button
+                type="button"
+                aria-label="Increase card quantity"
+                :disabled="customization.store.cartQuantity === MAX_ITEM_QUANTITY"
+                @click="updateQuantity(1)"
+              >
                 <i class="pi pi-plus" aria-hidden="true"></i>
               </button>
             </div>
@@ -285,7 +330,7 @@ watch(
                 customization.store.cartQuantity === 1 ? '' : 's'
               }}</span
             >
-            <strong>£{{ quantityTotal }}</strong>
+            <strong>{{ formatMoney(quantityTotal) }}</strong>
           </div>
           <span
             class="kedak-disabled-button-help"

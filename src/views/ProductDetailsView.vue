@@ -6,21 +6,24 @@ import { computed } from 'vue'
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import FinishCard from '../components/FinishCard.vue'
 import StockBadge from '../components/StockBadge.vue'
-import { finishes, isFinishInStock } from '../stores/cardCustomization'
+import { useFinishCatalog } from '../queries/catalog'
 import { useCardCustomizationStore } from '../stores/cardCustomization'
 import type { CardFinish } from '../types/card'
+import { formatMoney } from '../utils/money'
 
 const route = useRoute()
 const router = useRouter()
 const store = useCardCustomizationStore()
+// Finishes, prices and stock come from GET /finishes.
+const catalog = useFinishCatalog()
+const finishes = catalog.finishes
+const CARD_FINISHES: CardFinish[] = ['Silver', 'Black', 'Gold', 'Signature']
 const finish = computed<CardFinish>(() => {
-  const found = finishes.find(
-    (item) => item.name.toLowerCase() === String(route.params.finish).toLowerCase(),
-  )
-  return found?.name ?? 'Black'
+  const param = String(route.params.finish).toLowerCase()
+  return CARD_FINISHES.find((name) => name.toLowerCase() === param) ?? 'Black'
 })
-const price = computed(() => finishes.find((item) => item.name === finish.value)!.price)
-const inStock = computed(() => isFinishInStock(finish.value))
+const price = computed(() => catalog.price(finish.value))
+const inStock = computed(() => catalog.isInStock(finish.value))
 
 type BreadcrumbItem = MenuItem & { route?: RouteLocationRaw }
 
@@ -65,7 +68,8 @@ function personalise() {
         <h1 class="page-title">{{ finish }}</h1>
         <p class="product-subtitle">The metal conversion</p>
         <div class="product-price-row">
-          <strong class="product-price">£{{ price }}</strong>
+          <strong v-if="price" class="product-price">{{ formatMoney(price) }}</strong>
+          <strong v-else class="product-price price-pending" aria-label="Price loading">—</strong>
           <StockBadge :finish="finish" />
         </div>
         <p class="intro-copy">
@@ -84,16 +88,21 @@ function personalise() {
             {{ item.name }}
           </button>
         </div>
+        <p v-if="catalog.isError.value" class="api-state is-error" role="alert">
+          We couldn’t load prices and stock.
+          <button type="button" class="api-retry" @click="catalog.refetch()">Try again</button>
+        </p>
         <Button
           size="small"
           class="kedak-action"
-          :label="inStock ? 'Personalise this card' : 'Out of stock'"
-          :icon="inStock ? 'pi pi-arrow-up-right' : 'pi pi-ban'"
+          :label="inStock || catalog.isLoading.value ? 'Personalise this card' : 'Out of stock'"
+          :icon="inStock || catalog.isLoading.value ? 'pi pi-arrow-up-right' : 'pi pi-ban'"
           icon-pos="right"
+          :loading="catalog.isLoading.value"
           :disabled="!inStock"
           @click="personalise"
         />
-        <p v-if="!inStock" class="stock-note">
+        <p v-if="!inStock && !catalog.isLoading.value && !catalog.isError.value" class="stock-note">
           <i class="pi pi-ban" aria-hidden="true"></i>
           <span
             >This finish is out of stock and can’t be ordered. Choose another finish above.</span
