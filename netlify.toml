@@ -14,8 +14,7 @@
   VITE_API_BASE_URL = "/api/v1"
   # Google sign-in client ID: public by design (sent to every browser), so it lives here and every
   # build includes it. Must match GOOGLE_OAUTH_CLIENT_ID on the API (Cloud Run).
-  VITE_GOOGLE_CLIENT_ID = "940638813442-ortde3bn9hip39jhe6sukio60u7sn96p.apps.googleusercontent.com"
-
+  VITE_GOOGLE_CLIENT_ID = "425305393503-coaih2dnl9rqe07ms8fl2k4rkkk4vbj0.apps.googleusercontent.com"
 # API proxy (must come before the SPA fallback).
 [[redirects]]
   from = "/api/*"
