@@ -9,11 +9,11 @@ import type { Money } from '../../types/api'
 import { formatMoney } from '../../utils/money'
 
 /**
- * Optional extras in the customiser: contactless payment (on by default, priced per card by
- * the server) and a free-text note for the production team.
+ * Card options in the customiser: contactless payment (included in the card price by default;
+ * unticking it lowers the price) and a free-text note for the production team.
  */
 defineProps<{
-  /** Per-card contactless price; null while it loads. */
+  /** Per-card contactless price (the saving when unticked); null while it loads. */
   price: Money | null
 }>()
 const contactless = defineModel<boolean>('contactless', { required: true })
@@ -34,7 +34,7 @@ function removeNotes() {
 
 <template>
   <section class="card-extras" aria-labelledby="card-extras-title">
-    <h2 id="card-extras-title" class="control-heading">Extras</h2>
+    <h2 id="card-extras-title" class="control-heading">Card options</h2>
     <label
       for="card-contactless"
       class="customization-mode-option card-extra-option"
@@ -44,14 +44,16 @@ function removeNotes() {
       <span class="customization-mode-option-copy">
         <strong>
           Contactless payment
-          <span class="card-extra-price">
-            +<SkeletonText v-if="!price" width="3rem" /><template v-else>{{
-              formatMoney(price)
-            }}</template>
-            per card
-          </span>
+          <span v-if="contactless" class="card-extra-price">Included</span>
         </strong>
-        <small>Recommended. Untick if you only insert your card.</small>
+        <small v-if="contactless">Recommended. Untick if you only insert your card.</small>
+        <small v-else>
+          Not included. Your card costs
+          <SkeletonText v-if="!price" width="2.5rem" /><template v-else>{{
+            formatMoney(price)
+          }}</template>
+          less.
+        </small>
       </span>
       <Checkbox v-model="contactless" input-id="card-contactless" :binary="true" />
     </label>

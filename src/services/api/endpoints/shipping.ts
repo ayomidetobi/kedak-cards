@@ -89,6 +89,8 @@ export interface ShippingSettingsInput {
   parcelWeightG: number
   customsDescription: string
   customsTariffNumber: string
+  /** Flat delivery fee in minor units, charged when no live rate is available. */
+  flatFeeAmount?: number
 }
 
 export interface ShippingProviderInfo {
@@ -105,6 +107,8 @@ export interface ShippingSettings extends ShippingSettingsInput {
   providers: ShippingProviderInfo[]
   /** Provider configured and ship-from address complete: checkout uses live rates. */
   liveRates: boolean
+  flatFee: Money
+  flatFeeAmount: number
   canEdit: boolean
   updatedAt: string | null
 }

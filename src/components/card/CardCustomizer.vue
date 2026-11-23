@@ -6,7 +6,7 @@ import { useToast } from 'primevue/usetoast'
 import StockBadge from '../StockBadge.vue'
 import TextLink from '../TextLink.vue'
 import { useArtworkSelection } from '../../composables/useArtworkSelection'
-import { useAddOnsQuery, useFinishCatalog } from '../../queries/catalog'
+import { useFinishCatalog } from '../../queries/catalog'
 import { errorMessage } from '../../services/api/errors'
 import { MAX_ITEM_QUANTITY } from '../../types/card'
 import { formatMoney } from '../../utils/money'
@@ -23,7 +23,6 @@ import type { CustomizationMode } from '../../types/card'
 const customization = useCardCustomization()
 const artwork = useArtworkSelection()
 const catalog = useFinishCatalog()
-const addOns = useAddOnsQuery()
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
@@ -108,15 +107,14 @@ const addToCartDisabledReason = computed(
     editError.value,
 )
 const canAddToCart = computed(() => !addToCartDisabledReason.value)
-const finishPrice = computed(() => catalog.price(customization.store.finish))
-const contactlessPrice = computed(() => addOns.data.value?.contactless.price ?? null)
-/** Finish price plus contactless when chosen (the server prices the cart the same way). */
-const unitPrice = computed(() => {
-  if (!finishPrice.value) return null
-  if (!customization.store.contactless) return finishPrice.value
-  if (!contactlessPrice.value) return null
-  return { ...finishPrice.value, amount: finishPrice.value.amount + contactlessPrice.value.amount }
-})
+const contactlessPrice = catalog.contactlessPrice
+/**
+ * One card price, the same one listings show: contactless is included by default and comes
+ * off when unticked (the server prices the cart the same way, so it's never added twice).
+ */
+const unitPrice = computed(() =>
+  catalog.price(customization.store.finish, customization.store.contactless),
+)
 const quantityTotal = computed(() =>
   unitPrice.value
     ? { ...unitPrice.value, amount: unitPrice.value.amount * customization.store.cartQuantity }
@@ -323,14 +321,18 @@ watch(
         <section class="price-card">
           <div class="price-heading">
             <span>Your conversion</span>
-            <strong v-if="finishPrice">{{ formatMoney(finishPrice) }}</strong>
+            <strong v-if="unitPrice">{{ formatMoney(unitPrice) }}</strong>
             <strong v-else class="price-pending" aria-label="Price loading">—</strong>
           </div>
-          <div v-if="contactless" class="price-heading price-extra">
-            <span>Contactless</span>
-            <span>+{{ contactlessPrice ? formatMoney(contactlessPrice) : '—' }}</span>
-          </div>
-          <p>Per card. Name and engraving included. Return delivery calculated at checkout.</p>
+          <p>
+            Per card.
+            {{
+              contactless
+                ? 'Contactless, name and engraving included.'
+                : 'Name and engraving included.'
+            }}
+            Return delivery calculated at checkout.
+          </p>
           <div class="customizer-quantity-row">
             <span>Quantity</span>
             <div class="quantity-control" role="group" aria-label="Card quantity">

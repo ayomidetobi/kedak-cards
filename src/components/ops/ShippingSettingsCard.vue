@@ -9,6 +9,7 @@ import SkeletonText from '../skeletons/parts/SkeletonText.vue'
 import { useShippingSettings, useUpdateShippingSettings } from '../../queries/shipping'
 import { ApiError, errorMessage } from '../../services/api/errors'
 import type { ShippingSettingsInput } from '../../services/api/endpoints/shipping'
+import { formatMoney } from '../../utils/money'
 import { phoneCountryOptions } from '../../utils/phoneCountries'
 
 /**
@@ -90,6 +91,15 @@ const form = reactive<ShippingSettingsInput>({
   customsDescription: '',
   customsTariffNumber: '',
 })
+/** Flat fee typed in major units ("8" or "12.50"); sent in minor units. */
+const flatFee = ref('')
+function toMinor(value: string): number | null {
+  const cleaned = value.replace(/[^\d.]/g, '')
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null
+  const amount = Math.round(Number(cleaned) * 100)
+  return amount <= 100_000 ? amount : null
+}
+
 const weight = computed({
   get: () => String(form.parcelWeightG || ''),
   set: (value: string) => (form.parcelWeightG = Number(value.replace(/\D/g, '')) || 0),
@@ -100,14 +110,20 @@ function startEdit() {
   for (const key of Object.keys(form) as (keyof ShippingSettingsInput)[]) {
     ;(form as Record<string, unknown>)[key] = data.value[key]
   }
+  flatFee.value = ((data.value.flatFeeAmount ?? 800) / 100).toFixed(2)
   error.value = ''
   editing.value = true
 }
 
 async function save() {
   error.value = ''
+  const flatFeeAmount = toMinor(flatFee.value)
+  if (flatFeeAmount === null) {
+    error.value = 'Enter a flat delivery fee such as 8 or 12.50 (up to 1,000).'
+    return
+  }
   try {
-    await update.mutateAsync({ ...form })
+    await update.mutateAsync({ ...form, flatFeeAmount })
     editing.value = false
     toast.add({ severity: 'success', summary: 'Shipping settings saved', life: 2400 })
   } catch (err) {
@@ -178,6 +194,18 @@ const parcelFields: { key: keyof ShippingSettingsInput; label: string }[] = [
           option-value="value"
           class="kedak-select"
         />
+      </div>
+      <div class="people-field people-span">
+        <FloatLabel class="checkout-float-label" variant="in">
+          <InputText id="shipping-flat-fee" v-model="flatFee" inputmode="decimal" />
+          <label for="shipping-flat-fee"
+            >Flat delivery fee ({{ data.flatFee?.currency ?? 'USD' }})</label
+          >
+        </FloatLabel>
+        <small class="settings-hint">
+          Charged when there's no live rate (for example the US or Nigeria) or the provider is
+          unavailable.
+        </small>
       </div>
       <p class="products-shipping-group people-span">Ships from</p>
       <div
@@ -264,6 +292,13 @@ const parcelFields: { key: keyof ShippingSettingsInput; label: string }[] = [
           <dd>
             <SkeletonText v-if="!data" width="12rem" />
             <template v-else>{{ origin || 'Not set' }}</template>
+          </dd>
+        </div>
+        <div>
+          <dt>Flat fee</dt>
+          <dd>
+            <SkeletonText v-if="!data" width="3rem" />
+            <template v-else>{{ data.flatFee ? formatMoney(data.flatFee) : '—' }}</template>
           </dd>
         </div>
         <div>

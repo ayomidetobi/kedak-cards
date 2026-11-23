@@ -2,7 +2,7 @@ import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { getAddOns, getPolicy, listFinishes } from '../services/api/endpoints/catalog'
 import type { CardFinish } from '../types/card'
-import type { Finish, Policy } from '../types/api'
+import type { Finish, Money, Policy } from '../types/api'
 import { setStoreCurrency } from '../utils/money'
 import { queryKeys } from './query-keys'
 
@@ -36,9 +36,15 @@ export function useFinishesQuery() {
  * The finish catalogue as the UI needs it: API price/stock plus swatch colours, and lookups.
  * While loading (or after an error) nothing is treated as in stock, so nothing can be added to
  * the cart on a guess.
+ *
+ * Prices: contactless is part of the card by default, so the price shoppers see everywhere is
+ * `price()` = finish price + contactless (the server prices cart lines the same way). Only the
+ * customiser uses `basePrice()`, to take contactless off when the customer unticks it.
  */
 export function useFinishCatalog() {
   const query = useFinishesQuery()
+  const addOns = useAddOnsQuery()
+  const contactless = computed(() => addOns.data.value?.contactless.price ?? null)
   const finishes = computed(() => query.data.value ?? [])
   const byName = computed(
     () => new Map<CardFinish, Finish>(finishes.value.map((finish) => [finish.name, finish])),
@@ -46,6 +52,14 @@ export function useFinishCatalog() {
 
   function finish(name: CardFinish) {
     return byName.value.get(name) ?? null
+  }
+
+  /** Card price; null until both the finish and (when included) the contactless price load. */
+  function cardPrice(item: Finish | null, withContactless: boolean): Money | null {
+    if (!item) return null
+    if (!withContactless) return item.price
+    if (!contactless.value) return null
+    return { ...item.price, amount: item.price.amount + contactless.value.amount }
   }
 
   return {
@@ -56,21 +70,23 @@ export function useFinishCatalog() {
     error: computed(() => query.error.value),
     finish,
     isInStock: (name: CardFinish) => finish(name)?.inStock ?? false,
-    price: (name: CardFinish) => finish(name)?.price ?? null,
+    price: (name: CardFinish, withContactless = true) => cardPrice(finish(name), withContactless),
+    basePrice: (name: CardFinish) => finish(name)?.price ?? null,
+    contactlessPrice: contactless,
     inStockFinishes: computed(() => finishes.value.filter((item) => item.inStock)),
-    lowestPrice: computed(() =>
-      finishes.value.length
-        ? finishes.value.reduce(
-            (low, item) => (item.price.amount < low.amount ? item.price : low),
-            finishes.value[0]!.price,
-          )
-        : null,
-    ),
+    lowestPrice: computed(() => {
+      const prices = finishes.value
+        .map((item) => cardPrice(item, true))
+        .filter((price): price is Money => price !== null)
+      return prices.length
+        ? prices.reduce((low, price) => (price.amount < low.amount ? price : low))
+        : null
+    }),
     refetch: () => query.refetch(),
   }
 }
 
-/** Per-card price of optional extras (contactless), shown in the customiser and cart. */
+/** Per-card price of contactless (included in shop prices; deducted when unticked). */
 export function useAddOnsQuery() {
   return useQuery({
     queryKey: queryKeys.catalog.addOns(),

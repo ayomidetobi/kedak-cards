@@ -8,6 +8,7 @@ import { useMutation } from '@tanstack/vue-query'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import DeliveryQuoteOption from '../components/checkout/DeliveryQuoteOption.vue'
+import CardExtras from '../components/card/CardExtras.vue'
 import type { ShippingQuote } from '../services/api/endpoints/shipping'
 import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
@@ -163,6 +164,14 @@ const cartEditCategory = computed<CardCategory | null>({
 const cartEditMode = computed<CustomizationMode>({
   get: () => store.customizationMode,
   set: (mode) => setCartEditMode(mode),
+})
+const cartEditContactless = computed({
+  get: () => store.contactless,
+  set: (value: boolean) => store.setContactless(value),
+})
+const cartEditNotes = computed({
+  get: () => store.notes,
+  set: (value: string) => store.setNotes(value),
 })
 const cartEditHolderName = computed({
   get: () => store.holderName,
@@ -1291,7 +1300,9 @@ function continueToCheckout() {
                   @click="switchCartItemFinish(item, option.name)"
                 >
                   <span>Switch to {{ option.name }}</span>
-                  <strong>{{ formatMoney(option.price) }}</strong>
+                  <strong>{{
+                    formatMoney(catalog.price(option.name, item.customization?.contactless ?? true))
+                  }}</strong>
                 </button>
               </div>
               <Button
@@ -1398,6 +1409,11 @@ function continueToCheckout() {
                   </p>
                 </div>
                 <CardholderNameInput v-model="cartEditHolderName" />
+                <CardExtras
+                  v-model:contactless="cartEditContactless"
+                  v-model:notes="cartEditNotes"
+                  :price="catalog.contactlessPrice.value"
+                />
                 <div class="cart-editor-actions">
                   <span
                     class="kedak-disabled-button-help"

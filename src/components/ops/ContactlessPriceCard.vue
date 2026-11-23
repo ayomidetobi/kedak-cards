@@ -11,8 +11,8 @@ import { formatMoney } from '../../utils/money'
 import { formatOrderDate } from '../../utils/orderPolicy'
 
 /**
- * The contactless add-on on the Products page: its per-card price, which the shop adds to every
- * card ordered with contactless (on by default). Ops see it; administrators change it.
+ * Contactless on the Products page: its per-card price, included in every card price the shop
+ * shows and taken off when a customer unticks it. Ops see it; administrators change it.
  */
 const toast = useToast()
 const query = useStaffAddOns()
@@ -59,9 +59,10 @@ async function save() {
   <section class="info-card ops-panel products-addon" aria-labelledby="addon-contactless-title">
     <span class="icon-tile" aria-hidden="true"><i class="pi pi-wifi card-extra-wave"></i></span>
     <div class="products-addon-copy">
-      <h2 id="addon-contactless-title">Contactless add-on</h2>
+      <h2 id="addon-contactless-title">Contactless</h2>
       <p class="settings-hint">
-        One flat price per card, whatever the finish. Contactless is ticked by default in the shop.
+        Included in every card price the shop shows (finish price + this). Customers who untick
+        contactless pay this much less per card.
       </p>
     </div>
 
