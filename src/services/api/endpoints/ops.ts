@@ -12,9 +12,16 @@ import type {
  * Staff endpoints. Access is enforced by Django (`production` / `ops` roles); the frontend only
  * reflects the 401/403 it gets back.
  */
+export type OpsOrderSort = 'newest' | 'oldest' | 'total-high' | 'total-low'
+
 export interface OpsOrderFilters {
   status?: OrderStatus
   refundState?: RefundState
+  /** Only orders still being worked on (not delivered, cancelled or refunded). */
+  active?: boolean
+  /** Server-side search: reference, email, customer name or finish. */
+  q?: string
+  sort?: OpsOrderSort
   cursor?: string | null
   limit?: number
 }
@@ -44,6 +51,9 @@ export async function listOpsOrders(filters: OpsOrderFilters = {}, signal?: Abor
       cursor: filters.cursor ?? undefined,
       status: filters.status,
       refundState: filters.refundState,
+      active: filters.active || undefined,
+      q: filters.q || undefined,
+      sort: filters.sort && filters.sort !== 'newest' ? filters.sort : undefined,
     },
     signal,
   })

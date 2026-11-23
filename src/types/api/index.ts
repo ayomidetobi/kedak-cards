@@ -8,7 +8,13 @@ type Schemas = components['schemas']
 
 export type Money = Schemas['Money']
 export type Problem = Schemas['Problem']
-export type User = Schemas['User']
+/** Role as reported by GET /auth/me (display only: the API authorises every staff action). */
+export type UserRole = 'customer' | 'production' | 'ops' | 'admin'
+export type User = Schemas['User'] & {
+  /** Documented additions to the contract's User. */
+  emailVerified?: boolean
+  access?: { role: UserRole; staff: boolean; roles: string[] }
+}
 export type Session = Schemas['Session']
 export type SignupRequest = Schemas['SignupRequest']
 export type LoginRequest = Schemas['LoginRequest']

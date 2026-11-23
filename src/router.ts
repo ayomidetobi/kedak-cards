@@ -120,6 +120,18 @@ export const router = createRouter({
       component: () => import('./views/OpsView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('./views/SettingsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/ops/company',
+      name: 'ops-company',
+      component: () => import('./views/OpsCompanyView.vue'),
+      meta: { requiresAuth: true },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

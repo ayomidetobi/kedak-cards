@@ -47,6 +47,12 @@ export async function confirmPasswordReset(payload: {
   })
 }
 
+/** Documented addition: PATCH /auth/me changes the display name. */
+export async function updateProfile(payload: { name: string }): Promise<User> {
+  const { data } = await api.patch<User>('/auth/me', payload)
+  return data
+}
+
 export async function changePassword(payload: {
   oldPassword: string
   newPassword: string

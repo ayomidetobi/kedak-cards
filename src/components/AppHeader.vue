@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useTheme } from '../composables/useTheme'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import CartQuickView from './CartQuickView.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -9,6 +9,19 @@ const route = useRoute()
 const auth = useAuthStore()
 const { isDark, toggleTheme } = useTheme()
 const isMenuOpen = ref(false)
+const router = useRouter()
+const signingOut = ref(false)
+
+async function signOut() {
+  if (signingOut.value) return
+  signingOut.value = true
+  try {
+    await auth.signOut()
+    await router.push('/login')
+  } finally {
+    signingOut.value = false
+  }
+}
 
 watch(
   () => route.fullPath,
@@ -32,9 +45,9 @@ watch(
         @click="isMenuOpen = false"
       >
         <template v-if="route.path.startsWith('/ops')">
-          <RouterLink to="/ops">Orders</RouterLink>
-          <RouterLink to="/ops">Production</RouterLink>
+          <RouterLink to="/ops">Workbench</RouterLink>
           <RouterLink to="/ops/quality-check">Quality check</RouterLink>
+          <RouterLink to="/ops/company">Company & policies</RouterLink>
         </template>
         <template v-else>
           <RouterLink to="/collections">Collections</RouterLink>
@@ -62,8 +75,29 @@ watch(
         >
           <i :class="isDark ? 'pi pi-sun' : 'pi pi-moon'" aria-hidden="true"></i>
         </button>
-        <RouterLink v-if="route.path.startsWith('/ops')" to="/ops">Staff</RouterLink>
-        <CartQuickView v-else variant="header" />
+        <RouterLink
+          v-if="auth.isSignedIn"
+          to="/settings"
+          class="theme-toggle header-icon-link"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <i class="pi pi-cog" aria-hidden="true"></i>
+        </RouterLink>
+        <button
+          v-if="route.path.startsWith('/ops') && auth.isSignedIn"
+          type="button"
+          class="header-signout"
+          :disabled="signingOut"
+          @click="signOut"
+        >
+          <i
+            :class="signingOut ? 'pi pi-spin pi-spinner' : 'pi pi-sign-out'"
+            aria-hidden="true"
+          ></i>
+          <span>Sign out</span>
+        </button>
+        <CartQuickView v-else-if="!route.path.startsWith('/ops')" variant="header" />
       </div>
     </div>
   </header>

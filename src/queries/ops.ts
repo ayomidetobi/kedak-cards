@@ -1,5 +1,7 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import * as companyApi from '../services/api/endpoints/company'
+import type { Company, PolicyInput, PolicySlug } from '../services/api/endpoints/company'
 import * as opsApi from '../services/api/endpoints/ops'
 import type { OpsOrderFilters } from '../services/api/endpoints/ops'
 import type { AdvanceStatusRequest, Order, RefundDecisionRequest } from '../types/api'
@@ -50,5 +52,58 @@ export function useDecideRefund() {
     mutationFn: (input: { orderId: string; payload: RefundDecisionRequest }) =>
       opsApi.decideRefund(input.orderId, input.payload),
     onSuccess: refresh,
+  })
+}
+
+// --- Company information & policies (staff read, superusers save) ---------------------------
+
+export function useOpsCompany() {
+  return useQuery({
+    queryKey: queryKeys.ops.company(),
+    queryFn: ({ signal }) => companyApi.getOpsCompany(signal),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateOpsCompany() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: Company) => companyApi.updateOpsCompany(payload),
+    onSuccess: (company) => {
+      client.setQueryData(queryKeys.ops.company(), company)
+      // Company details are filled into the published policies.
+      void client.invalidateQueries({ queryKey: queryKeys.policies.all() })
+      void client.invalidateQueries({ queryKey: queryKeys.ops.policies() })
+    },
+  })
+}
+
+export function useOpsPolicies() {
+  return useQuery({
+    queryKey: queryKeys.ops.policies(),
+    queryFn: ({ signal }) => companyApi.listOpsPolicies(signal),
+    staleTime: 60_000,
+  })
+}
+
+export function useOpsPolicy(slug: MaybeRefOrGetter<PolicySlug | null>) {
+  return useQuery({
+    queryKey: computed(() => queryKeys.ops.policy(toValue(slug) ?? '')),
+    queryFn: ({ signal }) => companyApi.getOpsPolicy(toValue(slug)!, signal),
+    enabled: computed(() => Boolean(toValue(slug))),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateOpsPolicy() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { slug: PolicySlug; payload: PolicyInput }) =>
+      companyApi.updateOpsPolicy(input.slug, input.payload),
+    onSuccess: (policy) => {
+      client.setQueryData(queryKeys.ops.policy(policy.slug), policy)
+      void client.invalidateQueries({ queryKey: queryKeys.ops.policies() })
+      void client.invalidateQueries({ queryKey: queryKeys.policies.all() })
+    },
   })
 }

@@ -21,6 +21,7 @@ export const queryKeys = {
     design: (designId: string) => ['artwork', 'design', designId] as const,
   },
   policies: {
+    all: () => ['policies'] as const,
     detail: (slug: Policy['slug']) => ['policies', slug] as const,
   },
   cart: {
@@ -42,6 +43,9 @@ export const queryKeys = {
     all: () => ['ops'] as const,
     orders: (filters: Omit<OpsOrderFilters, 'cursor'>) => ['ops', 'orders', filters] as const,
     order: (orderId: string) => ['ops', 'order', orderId] as const,
+    company: () => ['ops', 'company'] as const,
+    policies: () => ['ops', 'policies'] as const,
+    policy: (slug: string) => ['ops', 'policies', slug] as const,
   },
 }
 

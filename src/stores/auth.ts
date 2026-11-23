@@ -85,6 +85,14 @@ export const useAuthStore = defineStore('auth', () => {
     establishSession(await authApi.signInWithGoogle(idToken))
   }
 
+  async function updateName(name: string) {
+    establishSession(await authApi.updateProfile({ name }))
+  }
+
+  const role = computed(() => user.value?.access?.role ?? 'customer')
+  const isStaff = computed(() => user.value?.access?.staff ?? false)
+  const isAdmin = computed(() => role.value === 'admin')
+
   async function signOut() {
     try {
       await authApi.logOut()
@@ -105,5 +113,9 @@ export const useAuthStore = defineStore('auth', () => {
     signUp,
     signInWithGoogle,
     signOut,
+    updateName,
+    role,
+    isStaff,
+    isAdmin,
   }
 })
