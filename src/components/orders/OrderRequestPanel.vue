@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '../ActionButton.vue'
 import { computed, nextTick, onMounted, ref, useId } from 'vue'
 import Button from 'primevue/button'
 import RadioButton from 'primevue/radiobutton'
@@ -33,12 +34,12 @@ const idempotencyKey = newIdempotencyKey()
 
 const cancelMutation = useCancelOrder(() => props.order.id)
 const refundMutation = useRequestRefund(() => props.order.id)
-const submitting = computed(
-  () => cancelMutation.isPending.value || refundMutation.isPending.value,
-)
+const submitting = computed(() => cancelMutation.isPending.value || refundMutation.isPending.value)
 
 const isCancel = computed(() => props.kind === 'cancel')
-const reasons = computed<readonly string[]>(() => (isCancel.value ? CANCEL_REASONS : REFUND_REASONS))
+const reasons = computed<readonly string[]>(() =>
+  isCancel.value ? CANCEL_REASONS : REFUND_REASONS,
+)
 const needsDetails = computed(() => reason.value === REASON_NEEDING_DETAILS)
 const noPayment = computed(() => props.order.payment.status === 'not-collected')
 
@@ -163,19 +164,27 @@ async function submit() {
     </p>
 
     <div class="cart-delete-confirm-actions order-request-actions">
-      <Button
-        size="small"
-        class="kedak-outline-action"
-        severity="secondary"
-        outlined
+      <ActionButton
+        kind="cancel"
+        compact
         :label="isCancel ? 'Keep my order' : 'Go back'"
         @click="emit('close')"
       />
+      <ActionButton
+        v-if="isCancel"
+        kind="delete"
+        compact
+        label="Cancel order"
+        icon="pi pi-times"
+        :loading="submitting"
+        @click="submit"
+      />
       <Button
+        v-else
         size="small"
-        :class="isCancel ? 'cart-delete-confirm-button' : 'kedak-action'"
-        :label="isCancel ? 'Cancel order' : 'Submit refund request'"
-        :icon="isCancel ? 'pi pi-times' : 'pi pi-send'"
+        class="kedak-action"
+        label="Submit refund request"
+        icon="pi pi-send"
         :loading="submitting"
         @click="submit"
       />

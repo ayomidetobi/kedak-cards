@@ -10,7 +10,12 @@
  *   App.vue shows `skeletonForRoute(route)` while a page is being loaded (its code chunk on
  *   first visit), only if loading takes longer than a short delay, so fast loads don't flash.
  *
- * Using them with API data later
+ * API data: only the data pulses (static content renders immediately)
+ *   SkeletonValue  one value (a number, a fact) while its request is pending.
+ *   SkeletonRows   placeholder rows inside a list/table/grid that is already on screen.
+ *   Never replace a whole page or card with a skeleton just because part of it is loading.
+ *
+ * Whole-page skeletons (legacy usage)
  *   Render the page's skeleton while its request is pending, then swap in the real content:
  *
  *     const { data: cart, isLoading } = useCartQuery()   // your data layer
@@ -38,6 +43,8 @@ export { default as FormSectionSkeleton } from './parts/FormSectionSkeleton.vue'
 export { default as OrderSummarySkeleton } from './parts/OrderSummarySkeleton.vue'
 export { default as PageHeaderSkeleton } from './parts/PageHeaderSkeleton.vue'
 export { default as ProductCardSkeleton } from './parts/ProductCardSkeleton.vue'
+export { default as SkeletonRows } from './parts/SkeletonRows.vue'
+export { default as SkeletonValue } from './parts/SkeletonValue.vue'
 export {
   AccountSkeleton,
   CartSkeleton,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '../components/ActionButton.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
@@ -13,6 +14,8 @@ import {
   useUpdateOpsCompany,
   useUpdateOpsPolicy,
 } from '../queries/ops'
+import PolicyPreviewCard from '../components/ops/PolicyPreviewCard.vue'
+import SkeletonText from '../components/skeletons/parts/SkeletonText.vue'
 import type { Company, PolicySlug } from '../services/api/endpoints/company'
 import { ApiError, errorMessage } from '../services/api/errors'
 
@@ -226,15 +229,6 @@ watch(activeTab, () => {
 })
 
 /** Splits text into plain and {token} parts so tokens can be highlighted in the preview. */
-function withTokens(text: string) {
-  return text
-    .split(/(\{[a-z_]+\})/g)
-    .filter(Boolean)
-    .map((part) => ({
-      text: part,
-      token: /^\{[a-z_]+\}$/.test(part),
-    }))
-}
 const copied = ref('')
 async function copyToken(token: string) {
   try {
@@ -290,34 +284,33 @@ async function copyToken(token: string) {
       <!-- Company ---------------------------------------------------------------------------->
       <div v-if="activeTab === 'company'" class="order-layout">
         <div class="order-primary">
-          <p v-if="companyQuery.isPending.value" class="api-state" aria-busy="true">
-            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading…
-          </p>
-          <section v-else-if="company && !editing" class="info-card ops-panel">
+          <section
+            v-if="!editing && (company || companyQuery.isPending.value)"
+            class="info-card ops-panel"
+            :aria-busy="!company || undefined"
+          >
             <div class="ops-panel-head">
               <h2>Company information</h2>
-              <Button
-                v-if="canEdit"
-                size="small"
-                class="kedak-outline-action ops-edit-button"
-                severity="secondary"
-                outlined
-                icon="pi pi-pencil"
-                label="Edit"
-                @click="startEditCompany"
-              />
+              <ActionButton kind="edit" v-if="canEdit" compact @click="startEditCompany" />
             </div>
             <dl class="ops-facts ops-company-facts">
               <div v-for="field in companyFields" :key="field.key">
                 <dt>{{ field.label.replace(' (optional)', '') }}</dt>
-                <dd :class="{ 'is-missing': !company[field.key] }">
-                  {{ company[field.key] || 'Not set' }}
+                <dd :class="{ 'is-missing': company && !company[field.key] }">
+                  <SkeletonText
+                    v-if="!company"
+                    :width="field.key.includes('Address') ? '14rem' : '9rem'"
+                  />
+                  <template v-else>{{ company[field.key] || 'Not set' }}</template>
                 </dd>
               </div>
             </dl>
             <p class="ops-panel-meta">
-              Last changed {{ formatDate(company.updatedAt, true) }}
-              <template v-if="company.updatedBy"> by {{ company.updatedBy }}</template>
+              <SkeletonText v-if="!company" width="14rem" />
+              <template v-else>
+                Last changed {{ formatDate(company.updatedAt, true) }}
+                <template v-if="company.updatedBy"> by {{ company.updatedBy }}</template>
+              </template>
             </p>
           </section>
 
@@ -357,18 +350,14 @@ async function copyToken(token: string) {
               ><span>{{ formError }}</span>
             </p>
             <div class="ops-form-actions">
-              <Button
-                type="submit"
-                class="kedak-action"
+              <ActionButton
+                kind="save"
                 label="Save changes"
                 :loading="saveCompany.isPending.value"
               />
-              <Button
+              <ActionButton
+                kind="cancel"
                 type="button"
-                class="kedak-outline-action"
-                severity="secondary"
-                outlined
-                label="Cancel"
                 :disabled="saveCompany.isPending.value"
                 @click="cancelEdit"
               />
@@ -389,65 +378,17 @@ async function copyToken(token: string) {
       <!-- Policy ----------------------------------------------------------------------------->
       <div v-else class="order-layout">
         <div class="order-primary">
-          <p v-if="policyQuery.isPending.value" class="api-state" aria-busy="true">
-            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading policy…
-          </p>
-          <p v-else-if="policyQuery.isError.value" class="api-state is-error" role="alert">
+          <p v-if="policyQuery.isError.value" class="api-state is-error" role="alert">
             {{ errorMessage(policyQuery.error.value, 'This policy couldn’t load.') }}
           </p>
 
-          <section v-else-if="policy && !editing" class="info-card ops-panel ops-policy-preview">
-            <div class="ops-panel-head">
-              <div>
-                <p class="ops-card-kicker">
-                  {{ policy.customised ? 'Published' : 'Default text' }}
-                </p>
-                <h2>{{ policy.title }}</h2>
-              </div>
-              <Button
-                v-if="canEdit"
-                size="small"
-                class="kedak-outline-action ops-edit-button"
-                severity="secondary"
-                outlined
-                icon="pi pi-pencil"
-                label="Edit"
-                @click="startEditPolicy"
-              />
-            </div>
-            <p class="ops-policy-summary">
-              <template v-for="(part, i) in withTokens(policy.summary)" :key="i">
-                <span v-if="part.token" class="ops-token">{{ part.text }}</span><template v-else>{{
-                  part.text
-                }}</template>
-              </template>
-            </p>
-            <section
-              v-for="section in policy.sections"
-              :key="section.id"
-              class="ops-policy-section"
-            >
-              <h3>{{ section.heading }}</h3>
-              <p v-for="(paragraph, p) in section.paragraphs ?? []" :key="p">
-                <template v-for="(part, i) in withTokens(paragraph)" :key="i">
-                  <span v-if="part.token" class="ops-token">{{ part.text }}</span><template
-                    v-else
-                    >{{ part.text }}</template
-                  >
-                </template>
-              </p>
-              <ul v-if="section.bullets?.length">
-                <li v-for="(bullet, b) in section.bullets" :key="b">
-                  <template v-for="(part, i) in withTokens(bullet)" :key="i">
-                    <span v-if="part.token" class="ops-token">{{ part.text }}</span><template
-                      v-else
-                      >{{ part.text }}</template
-                    >
-                  </template>
-                </li>
-              </ul>
-            </section>
-          </section>
+          <PolicyPreviewCard
+            v-else-if="policyQuery.isPending.value || (policy && !editing)"
+            :policy="policy"
+            :loading="policyQuery.isPending.value"
+            :can-edit="canEdit"
+            @edit="startEditPolicy"
+          />
 
           <form
             v-else-if="policy && editing"
@@ -553,18 +494,14 @@ async function copyToken(token: string) {
               ><span>{{ formError }}</span>
             </p>
             <div class="ops-form-actions">
-              <Button
-                type="submit"
-                class="kedak-action"
+              <ActionButton
+                kind="save"
                 label="Publish changes"
                 :loading="savePolicy.isPending.value"
               />
-              <Button
+              <ActionButton
+                kind="cancel"
                 type="button"
-                class="kedak-outline-action"
-                severity="secondary"
-                outlined
-                label="Cancel"
                 :disabled="savePolicy.isPending.value"
                 @click="cancelEdit"
               />

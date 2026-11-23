@@ -30,7 +30,14 @@ const categoriesQuery = useArtworkCategoriesQuery()
       </button>
     </template>
     <template v-else-if="categoriesQuery.isPending.value">
-      <button v-for="index in 5" :key="index" type="button" role="tab" disabled aria-label="Loading">
+      <button
+        v-for="index in 5"
+        :key="index"
+        type="button"
+        role="tab"
+        disabled
+        aria-label="Loading"
+      >
         &nbsp;
       </button>
     </template>

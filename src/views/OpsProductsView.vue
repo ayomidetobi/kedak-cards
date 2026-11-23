@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '../components/ActionButton.vue'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
@@ -6,7 +7,11 @@ import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
-import { finishSwatches } from '../queries/catalog'
+import ArtworkTile from '../components/ops/ArtworkTile.vue'
+import CategoryChip from '../components/ops/CategoryChip.vue'
+import ProductFinishCard from '../components/ops/ProductFinishCard.vue'
+import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
+import SkeletonText from '../components/skeletons/parts/SkeletonText.vue'
 import {
   useCreateStaffArtwork,
   useCreateStaffFinish,
@@ -26,7 +31,6 @@ import type {
   StaffFinish,
 } from '../services/api/endpoints/products'
 import type { CardCategory, CardFinish } from '../types/card'
-import { formatMoney } from '../utils/money'
 import { formatOrderDate } from '../utils/orderPolicy'
 
 /**
@@ -447,21 +451,21 @@ const artworkLoadError = computed(() =>
 
     <!-- ================================ Finishes ================================ -->
     <section v-if="tab === 'finishes'" aria-label="Finishes">
-      <p v-if="finishesQuery.isPending.value" class="api-state" aria-busy="true">
-        <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading finishes…
-      </p>
-      <p v-else-if="finishesQuery.isError.value" class="api-state is-error" role="alert">
+      <p v-if="finishesQuery.isError.value" class="api-state is-error" role="alert">
         {{ accessMessage(finishesQuery.error.value, 'Finishes couldn’t load.') }}
       </p>
-      <template v-else-if="finishList">
+      <template v-else>
         <div class="products-bar">
           <p class="settings-note">
             <i class="pi pi-info-circle" aria-hidden="true"></i>
-            Prices are in {{ currency }}. The store currency and delivery fee are set by an
-            administrator in the admin console.
+            Prices are in
+            <SkeletonText v-if="!finishList" width="2.2rem" /><template v-else>{{
+              currency
+            }}</template
+            >. The store currency and delivery fee are set by an administrator in the admin console.
           </p>
           <Button
-            v-if="finishList.available.length && !addingFinish"
+            v-if="finishList?.available.length && !addingFinish"
             class="kedak-outline-action products-bar-action"
             severity="secondary"
             outlined
@@ -472,7 +476,7 @@ const artworkLoadError = computed(() =>
         </div>
 
         <!-- Add finish -->
-        <section v-if="addingFinish" class="info-card ops-panel products-add">
+        <section v-if="finishList && addingFinish" class="info-card ops-panel products-add">
           <div class="people-add-head">
             <h2>Add a finish</h2>
             <button
@@ -531,14 +535,7 @@ const artworkLoadError = computed(() =>
               ><span>{{ finishError }}</span>
             </p>
             <div class="people-add-actions people-span">
-              <Button
-                type="button"
-                class="kedak-outline-action"
-                severity="secondary"
-                outlined
-                label="Cancel"
-                @click="addingFinish = false"
-              />
+              <ActionButton kind="cancel" type="button" @click="addingFinish = false" />
               <Button
                 type="submit"
                 class="kedak-action"
@@ -550,100 +547,21 @@ const artworkLoadError = computed(() =>
           </form>
         </section>
 
-        <div v-if="finishList.data.length" class="products-finishes">
-          <article
-            v-for="finish in finishList.data"
+        <div v-if="!finishList || finishList.data.length" class="products-finishes">
+          <SkeletonRows v-if="!finishList" :rows="4" label="Loading finishes">
+            <ProductFinishCard loading />
+          </SkeletonRows>
+          <ProductFinishCard
+            v-for="finish in finishList?.data ?? []"
             :key="finish.name"
-            class="info-card products-finish"
-            :class="{ 'is-editing': editingFinish === finish.name }"
+            :finish="finish"
+            :editing="editingFinish === finish.name"
+            :busy="updateFinish.isPending.value"
+            @edit="editFinish(finish)"
+            @toggle-stock="toggleStock(finish)"
+            @remove="removeFinish(finish)"
           >
-            <div
-              class="products-swatch"
-              :style="{
-                background: finishSwatches[finish.name]?.color,
-                color: finishSwatches[finish.name]?.foreground,
-              }"
-            >
-              <span>{{ finish.name }}</span>
-              <small>KEDAK METAL</small>
-            </div>
-
-            <template v-if="editingFinish !== finish.name">
-              <div class="products-finish-head">
-                <div>
-                  <h2>{{ finish.name }}</h2>
-                  <p class="products-price">{{ formatMoney(finish.price) }}</p>
-                </div>
-                <span class="settings-badge" :class="finish.inStock ? 'is-ok' : 'is-warn'">
-                  <i
-                    :class="finish.inStock ? 'pi pi-check-circle' : 'pi pi-exclamation-circle'"
-                    aria-hidden="true"
-                  ></i>
-                  {{ finish.inStock ? 'In stock' : 'Out of stock' }}
-                </span>
-              </div>
-              <p class="products-description">
-                {{ finish.description || 'No description yet.' }}
-              </p>
-              <dl class="products-facts">
-                <div>
-                  <dt>Orders</dt>
-                  <dd>{{ finish.orderCount }}</dd>
-                </div>
-                <div>
-                  <dt>Display order</dt>
-                  <dd>{{ finish.displayOrder }}</dd>
-                </div>
-                <div>
-                  <dt>Updated</dt>
-                  <dd>{{ finish.updatedAt ? formatOrderDate(finish.updatedAt) : '—' }}</dd>
-                </div>
-              </dl>
-              <div class="products-actions">
-                <Button
-                  size="small"
-                  class="kedak-action"
-                  icon="pi pi-pencil"
-                  label="Edit"
-                  @click="editFinish(finish)"
-                />
-                <Button
-                  size="small"
-                  class="kedak-outline-action"
-                  severity="secondary"
-                  outlined
-                  :icon="finish.inStock ? 'pi pi-ban' : 'pi pi-check'"
-                  :label="finish.inStock ? 'Mark out of stock' : 'Mark in stock'"
-                  :disabled="updateFinish.isPending.value"
-                  @click="toggleStock(finish)"
-                />
-                <Button
-                  size="small"
-                  class="kedak-outline-action person-danger-soft"
-                  severity="secondary"
-                  outlined
-                  icon="pi pi-trash"
-                  label="Delete"
-                  :disabled="!finish.canDelete"
-                  :title="
-                    finish.canDelete
-                      ? 'Remove this finish from the store'
-                      : 'Ordered before, so it can’t be deleted. Mark it out of stock instead.'
-                  "
-                  @click="removeFinish(finish)"
-                />
-              </div>
-              <p v-if="!finish.canDelete" class="settings-hint products-hint">
-                Already ordered, so it can’t be deleted. Mark it out of stock to stop sales.
-              </p>
-            </template>
-
-            <form
-              v-else
-              class="products-finish-form"
-              novalidate
-              @submit.prevent="saveFinish(finish.name)"
-            >
+            <form class="products-finish-form" novalidate @submit.prevent="saveFinish(finish.name)">
               <h2>Edit {{ finish.name }}</h2>
               <div class="people-field">
                 <FloatLabel class="checkout-float-label" variant="in">
@@ -684,24 +602,11 @@ const artworkLoadError = computed(() =>
                 ><span>{{ finishError }}</span>
               </p>
               <div class="people-add-actions">
-                <Button
-                  type="button"
-                  class="kedak-outline-action"
-                  severity="secondary"
-                  outlined
-                  label="Cancel"
-                  @click="editingFinish = null"
-                />
-                <Button
-                  type="submit"
-                  class="kedak-action"
-                  icon="pi pi-check"
-                  label="Save"
-                  :loading="updateFinish.isPending.value"
-                />
+                <ActionButton kind="cancel" type="button" @click="editingFinish = null" />
+                <ActionButton kind="save" :loading="updateFinish.isPending.value" />
               </div>
             </form>
-          </article>
+          </ProductFinishCard>
         </div>
         <div v-else class="info-card ops-empty">
           <span class="icon-tile" aria-hidden="true"><i class="pi pi-palette"></i></span>
@@ -720,28 +625,26 @@ const artworkLoadError = computed(() =>
       </p>
       <template v-else>
         <div class="products-categories" role="group" aria-label="Filter by category">
-          <button
-            type="button"
-            class="products-category"
-            :class="{ 'is-active': category === null }"
-            :aria-pressed="category === null"
-            @click="category = null"
-          >
-            <strong>All artwork</strong>
-            <small>{{ totals.published }} live · {{ totals.hidden }} hidden</small>
-          </button>
-          <button
+          <CategoryChip
+            name="All artwork"
+            :published="totals.published"
+            :hidden="totals.hidden"
+            :loading="categoriesQuery.isPending.value"
+            :active="category === null"
+            @select="category = null"
+          />
+          <SkeletonRows v-if="categoriesQuery.isPending.value" :rows="5" label="Loading categories">
+            <CategoryChip loading />
+          </SkeletonRows>
+          <CategoryChip
             v-for="item in categories"
             :key="item.name"
-            type="button"
-            class="products-category"
-            :class="{ 'is-active': category === item.name }"
-            :aria-pressed="category === item.name"
-            @click="category = item.name"
-          >
-            <strong>{{ item.name }}</strong>
-            <small>{{ item.published }} live · {{ item.hidden }} hidden</small>
-          </button>
+            :name="item.name"
+            :published="item.published"
+            :hidden="item.hidden"
+            :active="category === item.name"
+            @select="category = item.name"
+          />
         </div>
 
         <div class="products-artwork-layout" :class="{ 'has-panel': selected || uploading }">
@@ -782,10 +685,7 @@ const artworkLoadError = computed(() =>
               />
             </div>
 
-            <p v-if="artworkQuery.isPending.value" class="api-state" aria-busy="true">
-              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading artwork…
-            </p>
-            <div v-else-if="!designs.length" class="ops-empty">
+            <div v-if="!artworkQuery.isPending.value && !designs.length" class="ops-empty">
               <span class="icon-tile" aria-hidden="true"><i class="pi pi-images"></i></span>
               <p>
                 <strong>No artwork here</strong>
@@ -793,32 +693,21 @@ const artworkLoadError = computed(() =>
               </p>
             </div>
             <ul v-else class="products-grid">
-              <li v-for="design in designs" :key="design.id">
-                <button
-                  type="button"
-                  class="products-tile"
-                  :class="{
-                    'is-selected': selected?.id === design.id,
-                    'is-hidden': !design.isPublished,
-                  }"
-                  :aria-pressed="selected?.id === design.id"
-                  @click="(selectDesign(design), revealPanel())"
-                >
-                  <span class="products-tile-art">
-                    <img
-                      v-if="design.artworkUrl"
-                      :src="design.artworkUrl"
-                      :alt="design.name"
-                      loading="lazy"
-                    />
-                  </span>
-                  <span class="products-tile-copy">
-                    <strong>{{ design.name }}</strong>
-                    <small>{{ design.id }}</small>
-                  </span>
-                  <span v-if="!design.isPublished" class="products-tile-flag">Hidden</span>
-                </button>
-              </li>
+              <SkeletonRows
+                v-if="artworkQuery.isPending.value"
+                :rows="Math.min(pageSize, 12)"
+                label="Loading artwork"
+              >
+                <ArtworkTile loading />
+              </SkeletonRows>
+              <ArtworkTile
+                v-for="design in designs"
+                v-else
+                :key="design.id"
+                :design="design"
+                :selected="selected?.id === design.id"
+                @select="(selectDesign(design), revealPanel())"
+              />
             </ul>
 
             <nav
@@ -984,13 +873,12 @@ const artworkLoadError = computed(() =>
                 <i class="pi pi-exclamation-circle" aria-hidden="true"></i
                 ><span>{{ artworkError }}</span>
               </p>
-              <Button
-                type="submit"
-                class="kedak-action person-full"
-                icon="pi pi-check"
+              <ActionButton
+                kind="save"
                 label="Save changes"
-                :disabled="editName.trim() === selected.name && !replacement"
                 :loading="updateArtwork.isPending.value"
+                :disabled="editName.trim() === selected.name && !replacement"
+                full
               />
             </form>
             <div class="products-panel-actions">

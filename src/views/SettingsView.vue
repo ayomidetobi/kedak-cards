@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '../components/ActionButton.vue'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
@@ -201,13 +202,7 @@ async function signOut() {
               />
               <label for="settings-name">Full name</label>
             </FloatLabel>
-            <Button
-              type="submit"
-              class="kedak-action"
-              label="Save"
-              :disabled="!nameChanged"
-              :loading="savingName"
-            />
+            <ActionButton kind="save" :loading="savingName" :disabled="!nameChanged" />
           </form>
           <small v-if="nameError" class="ops-field-error">{{ nameError }}</small>
 
@@ -281,12 +276,7 @@ async function signOut() {
               <i class="pi pi-exclamation-circle" aria-hidden="true"></i
               ><span>{{ passwordError }}</span>
             </p>
-            <Button
-              type="submit"
-              class="kedak-action"
-              label="Change password"
-              :loading="savingPassword"
-            />
+            <ActionButton kind="save" label="Change password" :loading="savingPassword" full />
           </form>
           <p v-else class="settings-note">
             <i class="pi pi-google" aria-hidden="true"></i>

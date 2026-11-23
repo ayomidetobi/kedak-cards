@@ -91,70 +91,74 @@ watch(
       aria-busy="true"
       aria-label="Loading designs"
     >
-      <span v-for="index in 5" :key="index" class="design-thumbnail design-thumbnail-skeleton"></span>
+      <span
+        v-for="index in 5"
+        :key="index"
+        class="design-thumbnail design-thumbnail-skeleton"
+      ></span>
     </div>
     <p v-else-if="!designs.length" class="muted-copy design-gallery-state">
       No designs in this category yet. Choose another category.
     </p>
     <template v-else>
-    <div class="design-carousel-bar">
-      <span class="design-carousel-count">
-        {{ designs.length }} design{{ designs.length === 1 ? '' : 's' }}
-      </span>
-      <div v-if="canScrollPrev || canScrollNext" class="design-carousel-controls">
+      <div class="design-carousel-bar">
+        <span class="design-carousel-count">
+          {{ designs.length }} design{{ designs.length === 1 ? '' : 's' }}
+        </span>
+        <div v-if="canScrollPrev || canScrollNext" class="design-carousel-controls">
+          <button
+            type="button"
+            class="design-carousel-arrow"
+            aria-label="Show previous designs"
+            :disabled="!canScrollPrev"
+            @click="scrollPage(-1)"
+          >
+            <i class="pi pi-chevron-left" aria-hidden="true"></i>
+          </button>
+          <button
+            type="button"
+            class="design-carousel-arrow"
+            aria-label="Show more designs"
+            :disabled="!canScrollNext"
+            @click="scrollPage(1)"
+          >
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div
+        ref="track"
+        class="design-gallery"
+        aria-label="Available card designs"
+        @scroll.passive="updateControls"
+      >
         <button
+          v-for="design in designs"
+          :key="design.id"
           type="button"
-          class="design-carousel-arrow"
-          aria-label="Show previous designs"
-          :disabled="!canScrollPrev"
-          @click="scrollPage(-1)"
+          :class="{ selected: selectedId === design.id }"
+          :aria-label="`Select ${design.name} design`"
+          :aria-pressed="selectedId === design.id"
+          @click="emit('select', design.id)"
         >
-          <i class="pi pi-chevron-left" aria-hidden="true"></i>
-        </button>
-        <button
-          type="button"
-          class="design-carousel-arrow"
-          aria-label="Show more designs"
-          :disabled="!canScrollNext"
-          @click="scrollPage(1)"
-        >
-          <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          <span class="design-thumbnail">
+            <img
+              v-if="design.artworkUrl"
+              :src="design.artworkUrl"
+              alt=""
+              width="120"
+              height="120"
+              loading="lazy"
+              decoding="async"
+            />
+            <strong v-else>{{ design.number }}</strong>
+            <span v-if="selectedId === design.id" class="design-selected-check" aria-hidden="true">
+              <i class="pi pi-check"></i>
+            </span>
+          </span>
+          <span class="design-name">{{ design.name }}</span>
         </button>
       </div>
-    </div>
-    <div
-      ref="track"
-      class="design-gallery"
-      aria-label="Available card designs"
-      @scroll.passive="updateControls"
-    >
-      <button
-        v-for="design in designs"
-        :key="design.id"
-        type="button"
-        :class="{ selected: selectedId === design.id }"
-        :aria-label="`Select ${design.name} design`"
-        :aria-pressed="selectedId === design.id"
-        @click="emit('select', design.id)"
-      >
-        <span class="design-thumbnail">
-          <img
-            v-if="design.artworkUrl"
-            :src="design.artworkUrl"
-            alt=""
-            width="120"
-            height="120"
-            loading="lazy"
-            decoding="async"
-          />
-          <strong v-else>{{ design.number }}</strong>
-          <span v-if="selectedId === design.id" class="design-selected-check" aria-hidden="true">
-            <i class="pi pi-check"></i>
-          </span>
-        </span>
-        <span class="design-name">{{ design.name }}</span>
-      </button>
-    </div>
     </template>
   </div>
 </template>

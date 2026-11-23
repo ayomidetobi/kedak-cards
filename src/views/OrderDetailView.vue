@@ -7,7 +7,9 @@ import OrderLookupForm from '../components/orders/OrderLookupForm.vue'
 import OrderRequestPanel from '../components/orders/OrderRequestPanel.vue'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
 import OrderTimeline from '../components/orders/OrderTimeline.vue'
-import OrderTrackingSkeleton from '../components/skeletons/pages/OrderTrackingSkeleton.vue'
+import Skeleton from 'primevue/skeleton'
+import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
+import SkeletonText from '../components/skeletons/parts/SkeletonText.vue'
 import PayNowPanel from '../components/checkout/PayNowPanel.vue'
 import { useConfirmPayment } from '../queries/payments'
 import { restoreAfterPaymentRedirect } from '../services/api/paymentHandoff'
@@ -114,9 +116,7 @@ function onCompleted() {
       {{ auth.isSignedIn ? 'Back to my account' : 'Back to home' }}
     </TextLink>
 
-    <OrderTrackingSkeleton v-if="isLoading" />
-
-    <section v-else-if="loadError" class="info-card order-lookup-card" role="alert">
+    <section v-if="loadError" class="info-card order-lookup-card" role="alert">
       <p class="api-state is-error">
         {{ loadError }}
         <button type="button" class="api-retry" @click="orderQuery.refetch()">Try again</button>
@@ -142,17 +142,34 @@ function onCompleted() {
       </div>
     </section>
 
-    <template v-else-if="order && meta">
+    <template v-else-if="isLoading || (order && meta)">
       <header class="order-header">
         <div>
-          <p class="eyebrow">ORDER {{ order.id }} · PLACED {{ formatOrderDate(order.placedAt) }}</p>
-          <h1 class="page-title">{{ meta.headline }}</h1>
-          <p class="intro-copy">{{ meta.description }}</p>
+          <p class="eyebrow">
+            ORDER {{ order?.id ?? orderId }} · PLACED
+            <SkeletonText v-if="!order" width="5.5rem" />
+            <template v-else>{{ formatOrderDate(order.placedAt) }}</template>
+          </p>
+          <h1 class="page-title">
+            <SkeletonText v-if="!meta" width="17rem" />
+            <template v-else>{{ meta.headline }}</template>
+          </h1>
+          <p class="intro-copy">
+            <SkeletonText v-if="!meta" width="26rem" />
+            <template v-else>{{ meta.description }}</template>
+          </p>
         </div>
-        <OrderStatusBadge :status="order.status" />
+        <span v-if="!order" class="order-status is-skeleton"><SkeletonText width="6.5rem" /></span>
+        <OrderStatusBadge v-else :status="order.status" />
       </header>
+      <span v-if="isLoading" class="visually-hidden" role="status">Loading your order…</span>
 
-      <p v-if="paymentNotice" class="checkout-account-note" role="status" aria-live="polite">
+      <p
+        v-if="order && paymentNotice"
+        class="checkout-account-note"
+        role="status"
+        aria-live="polite"
+      >
         <i
           :class="{
             'pi pi-spin pi-spinner': paymentNotice === 'confirming',
@@ -171,37 +188,42 @@ function onCompleted() {
       </p>
       <div class="order-layout">
         <div class="order-primary">
-          <PayNowPanel v-if="needsPayment && paymentNotice !== 'confirming'" :order="order" />
+          <PayNowPanel
+            v-if="order && needsPayment && paymentNotice !== 'confirming'"
+            :order="order"
+          />
           <section class="info-card account-timeline" aria-labelledby="order-progress-title">
             <h2 id="order-progress-title">
               {{
-                order.status === 'cancelled'
+                order?.status === 'cancelled'
                   ? 'Cancellation'
-                  : order.status === 'refund-requested' || order.status === 'refunded'
+                  : order?.status === 'refund-requested' || order?.status === 'refunded'
                     ? 'Refund progress'
                     : 'Order progress'
               }}
             </h2>
-            <OrderTimeline :order="order" />
+            <OrderTimeline :order="order" :loading="!order" />
           </section>
 
           <section
-            v-if="order.cancellation || order.refund"
+            v-if="order?.cancellation || order?.refund"
             class="notice-card order-resolution"
             aria-labelledby="order-resolution-title"
           >
             <h2 id="order-resolution-title">
-              {{ order.cancellation ? 'Why it was cancelled' : 'Your refund request' }}
+              {{ order?.cancellation ? 'Why it was cancelled' : 'Your refund request' }}
             </h2>
-            <p><strong>Reason:</strong> {{ order.cancellation?.reason ?? order.refund?.reason }}</p>
-            <p v-if="order.cancellation?.details || order.refund?.details">
-              “{{ order.cancellation?.details || order.refund?.details }}”
+            <p>
+              <strong>Reason:</strong> {{ order?.cancellation?.reason ?? order?.refund?.reason }}
             </p>
-            <p v-if="order.refund?.state === 'declined'">
+            <p v-if="order?.cancellation?.details || order?.refund?.details">
+              “{{ order?.cancellation?.details || order?.refund?.details }}”
+            </p>
+            <p v-if="order?.refund?.state === 'declined'">
               <strong>Refund declined.</strong>
               {{ order.refund.decisionNote }}
             </p>
-            <p v-else-if="order.refund?.state === 'approved'">
+            <p v-else-if="order?.refund?.state === 'approved'">
               <strong>Refund approved:</strong> up to {{ formatMoney(order.refund.amount) }}.
             </p>
           </section>
@@ -209,7 +231,22 @@ function onCompleted() {
           <section class="info-card order-items" aria-labelledby="order-items-title">
             <h2 id="order-items-title">Items</h2>
             <ul>
-              <li v-for="(line, index) in order.lines" :key="index">
+              <SkeletonRows v-if="!order" :rows="1" label="Loading your items">
+                <li aria-hidden="true">
+                  <span class="icon-tile icon-tile--small">
+                    <i class="pi pi-credit-card"></i>
+                  </span>
+                  <span class="order-item-copy">
+                    <strong><SkeletonText width="8.5rem" /></strong>
+                    <small><SkeletonText width="11rem" /></small>
+                  </span>
+                  <span class="order-item-price">
+                    <small><SkeletonText width="4rem" /></small>
+                    <strong><SkeletonText width="3rem" /></strong>
+                  </span>
+                </li>
+              </SkeletonRows>
+              <li v-for="(line, index) in order?.lines ?? []" :key="index">
                 <span class="icon-tile icon-tile--small" aria-hidden="true">
                   <i class="pi pi-credit-card"></i>
                 </span>
@@ -233,16 +270,34 @@ function onCompleted() {
           <section class="info-card order-summary" aria-labelledby="order-summary-title">
             <h2 id="order-summary-title">Summary</h2>
             <div class="summary-row">
-              <span>Subtotal</span><strong>{{ formatMoney(order.subtotal) }}</strong>
+              <span>Subtotal</span
+              ><strong
+                ><SkeletonText v-if="!order" width="3rem" /><template v-else>{{
+                  formatMoney(order.subtotal)
+                }}</template></strong
+              >
             </div>
             <div class="summary-row">
-              <span>Tracked return delivery</span><strong>{{ formatMoney(order.delivery) }}</strong>
+              <span>Tracked return delivery</span
+              ><strong
+                ><SkeletonText v-if="!order" width="3rem" /><template v-else>{{
+                  formatMoney(order.delivery)
+                }}</template></strong
+              >
             </div>
             <div class="summary-total">
-              <strong>Total</strong><strong>{{ formatMoney(order.total) }}</strong>
+              <strong>Total</strong
+              ><strong
+                ><SkeletonText v-if="!order" width="3.5rem" /><template v-else>{{
+                  formatMoney(order.total)
+                }}</template></strong
+              >
             </div>
+            <p v-if="!order" class="muted-copy order-payment-note">
+              <SkeletonText width="13rem" />
+            </p>
             <p
-              v-if="order.payment.status === 'not-collected'"
+              v-else-if="order.payment.status === 'not-collected'"
               class="muted-copy order-payment-note"
             >
               <i class="pi pi-info-circle" aria-hidden="true"></i>
@@ -250,7 +305,11 @@ function onCompleted() {
             </p>
             <p v-else-if="order.payment.status === 'paid'" class="muted-copy order-payment-note">
               <i class="pi pi-check-circle" aria-hidden="true"></i>
-              Paid{{ order.payment.provider ? ` with ${order.payment.provider === 'paystack' ? 'Paystack' : 'Stripe'}` : '' }}.
+              Paid{{
+                order.payment.provider
+                  ? ` with ${order.payment.provider === 'paystack' ? 'Paystack' : 'Stripe'}`
+                  : ''
+              }}.
             </p>
             <p v-else class="muted-copy order-payment-note">
               <i class="pi pi-replay" aria-hidden="true"></i>
@@ -259,7 +318,7 @@ function onCompleted() {
           </section>
 
           <OrderRequestPanel
-            v-if="openPanel"
+            v-if="openPanel && order"
             :key="openPanel"
             :order="order"
             :kind="openPanel"
@@ -274,9 +333,26 @@ function onCompleted() {
               <RouterLink to="/policies/refunds">refund &amp; cancellation policy</RouterLink>.
             </p>
 
-            <p v-if="eligibilityQuery.isPending.value" class="api-state" aria-busy="true">
-              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Checking what you can do…
-            </p>
+            <SkeletonRows
+              v-if="!order || eligibilityQuery.isPending.value"
+              :rows="2"
+              label="Checking what you can do"
+            >
+              <template #default="{ index }">
+                <div class="order-action is-skeleton" aria-hidden="true">
+                  <div>
+                    <strong><SkeletonText :width="index === 1 ? '7rem' : '8.5rem'" /></strong>
+                    <p><SkeletonText width="16rem" /></p>
+                  </div>
+                  <Skeleton
+                    v-if="index === 1"
+                    width="8.5rem"
+                    height="2.75rem"
+                    border-radius="8px"
+                  />
+                </div>
+              </template>
+            </SkeletonRows>
             <p v-else-if="eligibilityQuery.isError.value" class="api-state is-error" role="alert">
               {{ errorMessage(eligibilityQuery.error.value) }}
               <button type="button" class="api-retry" @click="eligibilityQuery.refetch()">
@@ -326,8 +402,8 @@ function onCompleted() {
           <section class="notice-card account-security">
             <h2><i class="pi pi-lock" aria-hidden="true"></i> Questions about this order?</h2>
             <p>
-              Quote <strong>{{ order.id }}</strong>. We’ll never ask for your PIN, CVV or full card
-              number.
+              Quote <strong>{{ order?.id ?? orderId }}</strong>. We’ll never ask for your PIN, CVV
+              or full card number.
             </p>
             <TextLink to="/help">Help &amp; FAQ</TextLink>
           </section>

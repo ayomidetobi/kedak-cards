@@ -54,9 +54,7 @@ onMounted(() => {
               )
             }}</span>
           </p>
-          <p class="auth-intro">
-            Request a new verification email from your account page.
-          </p>
+          <p class="auth-intro">Request a new verification email from your account page.</p>
         </template>
         <template v-else>
           <h1 id="verify-title" class="auth-title">Verifying your email…</h1>

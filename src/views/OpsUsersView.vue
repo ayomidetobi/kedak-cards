@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '../components/ActionButton.vue'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
@@ -6,6 +7,9 @@ import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
+import PersonRow from '../components/ops/PersonRow.vue'
+import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
+import StatTile from '../components/ops/StatTile.vue'
 import { useCreateStaffUser, useStaffUserSummary, useStaffUsers } from '../queries/ops'
 import { ApiError, errorMessage } from '../services/api/errors'
 import type {
@@ -15,8 +19,7 @@ import type {
 } from '../services/api/endpoints/users'
 import { useAuthStore } from '../stores/auth'
 import type { UserRole } from '../types/api'
-import { formatOrderDate } from '../utils/orderPolicy'
-import { initialsOf, roleMeta } from '../utils/people'
+import { roleMeta } from '../utils/people'
 
 /**
  * People (/ops/users): every account, searched, filtered, sorted and paged by the API.
@@ -174,18 +177,6 @@ function applyStat(key: StatKey) {
   status.value = key === 'unverified' || key === 'inactive' ? key : 'any'
 }
 
-/** "3 days ago" for recent dates; older ones show the date. */
-const relative = new Intl.RelativeTimeFormat('en-GB', { numeric: 'auto' })
-function relativeTime(value: string) {
-  const minutes = Math.round((new Date(value).getTime() - Date.now()) / 60_000)
-  if (Math.abs(minutes) < 60) return relative.format(minutes, 'minute')
-  const hours = Math.round(minutes / 60)
-  if (Math.abs(hours) < 24) return relative.format(hours, 'hour')
-  const days = Math.round(hours / 24)
-  if (Math.abs(days) < 30) return relative.format(days, 'day')
-  return formatOrderDate(value)
-}
-
 const filtered = computed(
   () => Boolean(searchTerm.value) || roleTab.value !== 'all' || status.value !== 'any',
 )
@@ -279,24 +270,18 @@ async function addPerson() {
 
     <template v-else>
       <div class="ops-stats people-stats">
-        <button
+        <StatTile
           v-for="stat in stats"
           :key="stat.key"
-          type="button"
-          class="ops-stat"
-          :class="{ 'is-active': activeStat === stat.key }"
-          :aria-pressed="activeStat === stat.key"
-          @click="applyStat(stat.key)"
-        >
-          <span class="icon-tile icon-tile--small" aria-hidden="true"
-            ><i :class="stat.icon"></i
-          ></span>
-          <span class="ops-stat-copy">
-            <strong>{{ summaryQuery.isPending.value ? '–' : stat.value }}</strong>
-            <small>{{ stat.label }}</small>
-            <em v-if="stat.detail" class="people-stat-detail">{{ stat.detail }}</em>
-          </span>
-        </button>
+          :icon="stat.icon"
+          :label="stat.label"
+          :value="stat.value"
+          :detail="stat.detail"
+          :has-detail="stat.key === 'all' || stat.key === 'staff'"
+          :loading="summaryQuery.isPending.value"
+          :active="activeStat === stat.key"
+          @select="applyStat(stat.key)"
+        />
       </div>
 
       <!-- Add a person -->
@@ -361,14 +346,7 @@ async function addPerson() {
             ><span>{{ createError }}</span>
           </p>
           <div class="people-add-actions people-span">
-            <Button
-              type="button"
-              class="kedak-outline-action"
-              severity="secondary"
-              outlined
-              label="Cancel"
-              @click="closeAddForm"
-            />
+            <ActionButton kind="cancel" type="button" @click="closeAddForm" />
             <Button
               type="submit"
               class="kedak-action"
@@ -431,10 +409,7 @@ async function addPerson() {
           </button>
         </div>
 
-        <p v-if="usersQuery.isPending.value" class="api-state" aria-busy="true">
-          <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading people…
-        </p>
-        <div v-else-if="!people.length" class="ops-empty">
+        <div v-if="!usersQuery.isPending.value && !people.length" class="ops-empty">
           <span class="icon-tile" aria-hidden="true"><i class="pi pi-users"></i></span>
           <p>
             <strong>{{ filtered ? 'No matching accounts' : 'No accounts yet' }}</strong>
@@ -453,67 +428,21 @@ async function addPerson() {
             <span role="columnheader" class="people-col-joined">Joined</span>
             <span aria-hidden="true"></span>
           </div>
-          <RouterLink
-            v-for="person in people"
-            :key="person.id"
-            :to="{ name: 'ops-user', params: { id: person.id } }"
-            class="people-item"
-            :class="{ 'is-inactive': !person.isActive }"
-            role="row"
-            :aria-label="`Open ${person.name || person.email}`"
+          <SkeletonRows
+            v-if="usersQuery.isPending.value"
+            :rows="Math.min(pageSize, 8)"
+            label="Loading people"
           >
-            <span class="people-person" role="cell">
-              <span class="people-avatar" :class="`is-${person.role}`" aria-hidden="true">{{
-                initialsOf(person)
-              }}</span>
-              <span class="people-ident">
-                <strong>
-                  {{ person.name || '—' }}
-                  <span v-if="person.id === auth.user?.id" class="people-you">You</span>
-                </strong>
-                <small :title="person.email">{{ person.email }}</small>
-              </span>
-            </span>
-            <span class="people-cell people-cell-role" role="cell">
-              <span class="people-role" :class="`is-${person.role}`">
-                <i :class="roleMeta[person.role].icon" aria-hidden="true"></i>
-                {{ roleMeta[person.role].label }}
-              </span>
-              <span v-if="!person.isActive" class="people-state is-off">
-                <i class="pi pi-ban" aria-hidden="true"></i> Deactivated
-              </span>
-            </span>
-            <span class="people-cell people-cell-email" role="cell">
-              <span v-if="person.emailVerified" class="people-state is-ok">
-                <i class="pi pi-check-circle" aria-hidden="true"></i> Verified
-              </span>
-              <span v-else class="people-state is-warn">
-                <i class="pi pi-exclamation-circle" aria-hidden="true"></i> Unverified
-              </span>
-              <span class="people-provider">
-                <i
-                  :class="person.provider === 'google' ? 'pi pi-google' : 'pi pi-envelope'"
-                  aria-hidden="true"
-                ></i>
-                {{ person.provider === 'google' ? 'Google' : 'Password' }}
-              </span>
-            </span>
-            <span class="people-cell people-col-num" role="cell">
-              <strong>{{ person.orderCount }}</strong>
-              <small class="people-mobile-label">{{
-                person.orderCount === 1 ? 'order' : 'orders'
-              }}</small>
-            </span>
-            <span class="people-cell people-col-seen" role="cell">
-              <small class="people-mobile-label">Last sign-in</small>
-              <span>{{ person.lastLogin ? relativeTime(person.lastLogin) : 'Never' }}</span>
-            </span>
-            <span class="people-cell people-col-joined" role="cell">
-              <small class="people-mobile-label">Joined</small>
-              <span>{{ formatOrderDate(person.dateJoined) }}</span>
-            </span>
-            <i class="pi pi-chevron-right people-chevron" aria-hidden="true"></i>
-          </RouterLink>
+            <PersonRow loading />
+          </SkeletonRows>
+          <template v-else>
+            <PersonRow
+              v-for="person in people"
+              :key="person.id"
+              :person="person"
+              :is-self="person.id === auth.user?.id"
+            />
+          </template>
         </div>
 
         <nav
@@ -549,18 +478,12 @@ async function addPerson() {
             <button
               type="button"
               :disabled="!hasNextPage || usersQuery.isFetchingNextPage.value"
+              :class="{ 'is-loading': usersQuery.isFetchingNextPage.value }"
               aria-label="Next page"
               @click="goToNextPage"
             >
               <span>Next</span>
-              <i
-                :class="
-                  usersQuery.isFetchingNextPage.value
-                    ? 'pi pi-spin pi-spinner'
-                    : 'pi pi-chevron-right'
-                "
-                aria-hidden="true"
-              ></i>
+              <i class="pi pi-chevron-right" aria-hidden="true"></i>
             </button>
           </div>
         </nav>

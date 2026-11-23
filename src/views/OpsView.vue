@@ -5,10 +5,16 @@ import Button from 'primevue/button'
 import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Skeleton from 'primevue/skeleton'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
+import NoticePanel from '../components/NoticePanel.vue'
+import TextLink from '../components/TextLink.vue'
 import OpsCardSpec from '../components/orders/OpsCardSpec.vue'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
+import OrderQueueRow from '../components/orders/OrderQueueRow.vue'
+import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
+import StatTile from '../components/ops/StatTile.vue'
 import { useDesignLookup } from '../queries/artwork'
 import { useAdvanceOrderStatus, useDecideRefund, useOpsOrder, useOpsOrders } from '../queries/ops'
 import { normaliseOrderId } from '../queries/orders'
@@ -191,6 +197,16 @@ const accessError = computed(() => {
   return error ? errorMessage(error, 'Orders couldn’t load.') : ''
 })
 const today = formatOrderDate(new Date())
+
+// Quality check without an order: open a job by its reference.
+const jumpReference = ref('')
+const jumpError = ref('')
+function openJumpReference() {
+  // Accept "KD-1234", "kd 1234", "KD1234" or just "1234".
+  const digits = normaliseOrderId(jumpReference.value).match(/^(?:KD-?)?(\d{4,8})$/)?.[1]
+  jumpError.value = digits ? '' : 'Enter a reference like KD-1234.'
+  if (digits) openJob(`KD-${digits}`)
+}
 
 function openJob(orderId: string) {
   void router.push({ name: 'quality-check', query: { order: orderId } })
@@ -402,23 +418,16 @@ function formatDateTime(value: string) {
 
     <template v-else>
       <div class="ops-stats">
-        <button
+        <StatTile
           v-for="stat in stats"
           :key="stat.key"
-          type="button"
-          class="ops-stat"
-          :class="{ 'is-active': activeFilter === stat.key }"
-          :aria-pressed="activeFilter === stat.key"
-          @click="activeFilter = stat.key"
-        >
-          <span class="icon-tile icon-tile--small" aria-hidden="true"
-            ><i :class="stat.icon"></i
-          ></span>
-          <span class="ops-stat-copy">
-            <strong>{{ overviewQuery.isPending.value ? '–' : stat.value }}</strong>
-            <small>{{ stat.label }}</small>
-          </span>
-        </button>
+          :icon="stat.icon"
+          :label="stat.label"
+          :value="stat.value"
+          :loading="overviewQuery.isPending.value"
+          :active="activeFilter === stat.key"
+          @select="activeFilter = stat.key"
+        />
       </div>
 
       <section class="info-card ops-queue" aria-labelledby="ops-queue-title">
@@ -464,9 +473,11 @@ function formatDateTime(value: string) {
           </button>
         </div>
 
-        <p v-if="ordersQuery.isPending.value" class="api-state" aria-busy="true">
-          <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading orders…
-        </p>
+        <ul v-if="ordersQuery.isPending.value" class="ops-rows">
+          <SkeletonRows :rows="Math.min(pageSize, 6)" label="Loading orders">
+            <OrderQueueRow loading />
+          </SkeletonRows>
+        </ul>
         <div v-else-if="!visibleQueue.length" class="ops-empty">
           <span class="icon-tile" aria-hidden="true"><i class="pi pi-check-circle"></i></span>
           <p>
@@ -490,28 +501,12 @@ function formatDateTime(value: string) {
           />
         </div>
         <ul v-else class="ops-rows">
-          <li v-for="order in visibleQueue" :key="order.id">
-            <RouterLink
-              :to="{ name: 'quality-check', query: { order: order.id } }"
-              class="ops-row"
-              :aria-label="`Open production job ${order.id}`"
-            >
-              <span class="ops-row-main">
-                <strong>{{ order.id }}</strong>
-                <small>{{ order.itemsSummary }}</small>
-              </span>
-              <span class="ops-row-next">
-                <small>Next</small>
-                {{ nextHint[order.status] ?? '—' }}
-              </span>
-              <OrderStatusBadge :status="order.status" />
-              <span class="ops-row-meta">
-                <strong>{{ formatMoney(order.total) }}</strong>
-                <small>{{ formatOrderDate(order.placedAt) }}</small>
-              </span>
-              <i class="pi pi-chevron-right ops-row-chevron" aria-hidden="true"></i>
-            </RouterLink>
-          </li>
+          <OrderQueueRow
+            v-for="order in visibleQueue"
+            :key="order.id"
+            :order="order"
+            :next-hint="nextHint[order.status]"
+          />
         </ul>
         <nav
           v-if="!ordersQuery.isPending.value && (queue.length || pageIndex > 0)"
@@ -546,18 +541,12 @@ function formatDateTime(value: string) {
             <button
               type="button"
               :disabled="!hasNextPage || ordersQuery.isFetchingNextPage.value"
+              :class="{ 'is-loading': ordersQuery.isFetchingNextPage.value }"
               aria-label="Next page"
               @click="goToNextPage"
             >
               <span>Next</span>
-              <i
-                :class="
-                  ordersQuery.isFetchingNextPage.value
-                    ? 'pi pi-spin pi-spinner'
-                    : 'pi pi-chevron-right'
-                "
-                aria-hidden="true"
-              ></i>
+              <i class="pi pi-chevron-right" aria-hidden="true"></i>
             </button>
           </div>
         </nav>
@@ -573,16 +562,84 @@ function formatDateTime(value: string) {
       <i class="pi pi-arrow-left" aria-hidden="true"></i> Production queue
     </RouterLink>
 
-    <section v-if="!selectedOrderId" class="info-card ops-job-empty">
-      <span class="icon-tile" aria-hidden="true"><i class="pi pi-inbox"></i></span>
-      <div>
-        <h1 class="ops-job-empty-title">No job selected</h1>
-        <p class="muted-copy">Choose an order from the production queue to open its job.</p>
+    <NoticePanel v-if="!selectedOrderId" :level="1" icon="pi pi-inbox" title="No job selected">
+      <p>Choose an order from the production queue, or open one by its reference.</p>
+      <template #actions>
+        <form class="ops-job-jump" novalidate @submit.prevent="openJumpReference">
+          <InputText
+            v-model="jumpReference"
+            class="ops-job-jump-input"
+            placeholder="Order reference, e.g. KD-1234"
+            aria-label="Order reference"
+            autocomplete="off"
+            :invalid="Boolean(jumpError)"
+          />
+          <Button
+            type="submit"
+            class="kedak-action"
+            label="Open job"
+            icon="pi pi-arrow-right"
+            icon-pos="right"
+          />
+        </form>
+        <TextLink to="/ops">Go to the workbench</TextLink>
+        <small v-if="jumpError" class="ops-field-error ops-job-jump-error">{{ jumpError }}</small>
+      </template>
+    </NoticePanel>
+    <!-- Loading a job: the page frame and headings render now; only the order data pulses. -->
+    <template v-else-if="jobQuery.isPending.value">
+      <header class="order-header" aria-busy="true">
+        <div>
+          <p class="eyebrow">PRODUCTION JOB · {{ selectedOrderId }}</p>
+          <Skeleton width="16rem" height="2.6rem" class="skeleton-title" />
+          <Skeleton width="14rem" height="1rem" />
+        </div>
+        <Skeleton width="7rem" height="1.6rem" border-radius="999px" />
+      </header>
+      <span class="visually-hidden" role="status">Loading job…</span>
+
+      <div class="order-layout" aria-hidden="true">
+        <div class="order-primary">
+          <section class="info-card ops-next">
+            <p class="ops-card-kicker">Next step</p>
+            <Skeleton width="12rem" height="1.4rem" />
+            <Skeleton height="0.9rem" class="skeleton-gap" />
+            <Skeleton height="2.75rem" class="skeleton-gap" />
+          </section>
+          <section class="info-card ops-cards">
+            <h2>Card details</h2>
+            <Skeleton height="4.5rem" class="skeleton-gap" />
+          </section>
+          <section class="info-card ops-history-card">
+            <h2>Production history</h2>
+            <div v-for="row in 3" :key="row" class="skeleton-row skeleton-gap">
+              <Skeleton width="45%" height="0.9rem" />
+              <Skeleton width="25%" height="0.8rem" />
+            </div>
+          </section>
+        </div>
+        <aside class="order-secondary">
+          <section class="info-card ops-progress">
+            <h2>Progress</h2>
+            <div v-for="row in 5" :key="row" class="skeleton-row skeleton-gap">
+              <Skeleton shape="circle" size="1.4rem" />
+              <Skeleton width="70%" height="0.9rem" />
+            </div>
+          </section>
+          <section class="info-card ops-order-facts">
+            <h2>Order</h2>
+            <div v-for="row in 4" :key="row" class="skeleton-row skeleton-gap">
+              <Skeleton width="35%" height="0.85rem" />
+              <Skeleton width="40%" height="0.85rem" />
+            </div>
+          </section>
+          <section class="notice-card ops-privacy">
+            <h2><i class="pi pi-lock" aria-hidden="true"></i> Staff only</h2>
+            <p>Never record PINs, CVVs or full card numbers in notes.</p>
+          </section>
+        </aside>
       </div>
-    </section>
-    <p v-else-if="jobQuery.isPending.value" class="api-state" aria-busy="true">
-      <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading job…
-    </p>
+    </template>
     <p v-else-if="jobQuery.isError.value" class="api-state is-error" role="alert">
       {{
         jobQuery.error.value instanceof ApiError && jobQuery.error.value.status === 403

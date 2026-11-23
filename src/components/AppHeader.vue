@@ -120,13 +120,11 @@ watch(
           v-if="route.path.startsWith('/ops') && auth.isSignedIn"
           type="button"
           class="header-signout"
+          :class="{ 'is-loading': signingOut }"
           :disabled="signingOut"
           @click="signOut"
         >
-          <i
-            :class="signingOut ? 'pi pi-spin pi-spinner' : 'pi pi-sign-out'"
-            aria-hidden="true"
-          ></i>
+          <i class="pi pi-sign-out" aria-hidden="true"></i>
           <span>Sign out</span>
         </button>
         <CartQuickView v-else-if="!route.path.startsWith('/ops')" variant="header" />

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BarsLoader from '../components/BarsLoader.vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -92,7 +93,8 @@ async function mountGoogleButton() {
   try {
     await renderGoogleButton(
       googleSlot.value,
-      (idToken) => void run('google', () => auth.signInWithGoogle(idToken), 'Signed in with Google'),
+      (idToken) =>
+        void run('google', () => auth.signInWithGoogle(idToken), 'Signed in with Google'),
       isSignup.value ? 'signup_with' : 'continue_with',
     )
     googleReady.value = true
@@ -106,7 +108,8 @@ onMounted(mountGoogleButton)
 watch(isSignup, mountGoogleButton)
 
 function continueWithGoogle() {
-  formError.value = googleUnavailable.value || 'Google sign-in is still loading. Try again in a moment.'
+  formError.value =
+    googleUnavailable.value || 'Google sign-in is still loading. Try again in a moment.'
 }
 
 function submitLogin(event: FormSubmitEvent) {
@@ -153,9 +156,10 @@ function passwordValue(value: unknown) {
           class="auth-google-button"
           :disabled="pending !== null"
           :aria-busy="pending === 'google'"
+          :class="{ 'is-loading': pending === 'google' }"
           @click="continueWithGoogle"
         >
-          <i v-if="pending === 'google'" class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+          <BarsLoader v-if="pending === 'google'" label="Signing in with Google" />
           <svg v-else width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
             <path
               fill="#EA4335"
@@ -337,7 +341,6 @@ function passwordValue(value: unknown) {
             <RouterLink to="/orders/find">Find your order</RouterLink>.
           </span>
         </p>
-
       </section>
 
       <aside class="auth-aside" aria-labelledby="auth-aside-title">

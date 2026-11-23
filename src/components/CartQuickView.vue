@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BarsLoader from './BarsLoader.vue'
+import ActionButton from './ActionButton.vue'
 import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
@@ -258,24 +260,15 @@ function removeItem(item: CardCartItem) {
                 Remove this {{ item.finish }} card from your cart?
               </p>
               <div class="cart-delete-confirm-actions">
-                <Button
+                <ActionButton
+                  kind="cancel"
+                  label="Keep item"
                   :id="`quick-keep-${variant}-${item.id}`"
                   type="button"
-                  size="small"
-                  class="kedak-outline-action"
-                  severity="secondary"
-                  outlined
-                  label="Keep item"
+                  compact
                   @click="cancelDelete(item.id)"
                 />
-                <Button
-                  type="button"
-                  size="small"
-                  class="cart-delete-confirm-button"
-                  label="Delete"
-                  icon="pi pi-trash"
-                  @click="removeItem(item)"
-                />
+                <ActionButton kind="delete" type="button" compact @click="removeItem(item)" />
               </div>
             </div>
             <div v-else class="cart-quick-view-actions">
@@ -303,15 +296,13 @@ function removeItem(item: CardCartItem) {
                 </button>
               </div>
               <div class="cart-quick-view-item-buttons">
-                <Button
+                <ActionButton
+                  kind="edit"
                   type="button"
-                  size="small"
                   :label="isCartItemCustomized(item) ? 'Edit' : 'Customise'"
-                  icon="pi pi-pencil"
-                  severity="secondary"
-                  text
-                  class="cart-quick-view-edit"
                   :aria-label="`${isCartItemCustomized(item) ? 'Edit' : 'Customise'} ${item.finish} card`"
+                  class="cart-quick-view-edit"
+                  compact
                   @click="openItemEditor(item)"
                 />
                 <Button
@@ -361,16 +352,13 @@ function removeItem(item: CardCartItem) {
             <span
               v-else
               class="cart-quick-view-checkout-disabled"
+              :class="{ 'is-loading': cart.isValidating.value }"
               aria-disabled="true"
               :aria-describedby="
                 checkoutBlockedReason ? `cart-quick-view-blocked-${variant}` : undefined
               "
             >
-              <i
-                v-if="cart.isValidating.value"
-                class="pi pi-spin pi-spinner"
-                aria-hidden="true"
-              ></i>
+              <BarsLoader v-if="cart.isValidating.value" label="Checking prices" />
               Checkout
             </span>
           </div>

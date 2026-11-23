@@ -2822,19 +2822,6 @@ a {
   gap: 8px;
 }
 
-.cart-delete-confirm-actions .kedak-outline-action {
-  width: auto;
-  margin: 0;
-  background: var(--kedak-surface);
-}
-
-.p-button.p-button.p-button.cart-delete-confirm-button,
-.p-button.p-button.p-button.cart-delete-confirm-button:not(:disabled):hover {
-  border-color: var(--kedak-danger-text);
-  background: var(--kedak-danger-text);
-  color: var(--kedak-surface);
-}
-
 /* Selected radio uses the accent, matching the selected option card border */
 .customization-mode-option .p-radiobutton-checked .p-radiobutton-box,
 .artwork-assignment .p-radiobutton-checked .p-radiobutton-box {
@@ -2848,38 +2835,8 @@ a {
 }
 
 .checkout-blocked-error,
-.checkout-blocked-panel {
-  padding: 12px;
-  border: 1px solid var(--kedak-message-warning-border);
-  border-radius: var(--kedak-card-radius);
-  background: var(--kedak-message-warning-background);
-  color: var(--kedak-message-warning-text);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
 .checkout-blocked-error {
   margin: 8px 0 0;
-}
-
-.checkout-blocked-panel {
-  max-width: 720px;
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin: 32px 0;
-  padding: 24px;
-  font-size: 14px;
-}
-
-.checkout-blocked-panel h2 {
-  margin: 0 0 6px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.checkout-blocked-panel p {
-  margin: 0 0 16px;
 }
 
 .cart-empty {
@@ -9526,8 +9483,7 @@ button.ops-token {
 
 .products-actions .p-button,
 .products-panel-actions .p-button {
-  min-height: 40px;
-  height: 40px;
+  min-height: 44px;
 }
 
 /* Button rows: outline buttons carry a default top margin; keep rows aligned */
@@ -9629,32 +9585,6 @@ button.ops-token {
   font-weight: 600;
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* Checkout: "Taking you to Stripe…" spans the checkout width and stacks on small screens */
-.checkout-blocked-panel.checkout-redirect {
-  width: 100%;
-  max-width: none;
-  box-sizing: border-box;
-  align-items: center;
-  margin: 32px 0;
-  padding: clamp(18px, 3vw, 32px);
-}
-
-.checkout-redirect h2 {
-  font-size: clamp(18px, 2.2vw, 22px);
-}
-
-.checkout-redirect p {
-  margin: 0;
-}
-
-@media (max-width: 520px) {
-  .checkout-blocked-panel.checkout-redirect {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
 }
 
 /* ==========================================================================
@@ -9861,37 +9791,6 @@ button.ops-token {
   line-height: 1.55;
 }
 
-.receipt-empty.info-card {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 18px;
-  margin-top: 32px;
-  padding: clamp(20px, 4vw, 36px);
-}
-
-.receipt-empty > div {
-  flex: 1 1 280px;
-}
-
-.receipt-empty-title {
-  margin: 0 0 8px;
-  font-size: clamp(22px, 3vw, 28px);
-  letter-spacing: -0.02em;
-}
-
-.receipt-empty-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.receipt-empty-actions .p-button {
-  width: auto;
-  margin: 0;
-}
-
 @media (max-width: 520px) {
   .receipt-heading {
     gap: 12px;
@@ -10031,4 +9930,361 @@ button.ops-token {
   .brand .brand-mark {
     transition: none;
   }
+}
+
+/* API placeholders inside real layouts (SkeletonValue / SkeletonRows) */
+.skeleton-value.p-skeleton {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.is-skeleton {
+  pointer-events: none;
+}
+
+.skeleton-title.p-skeleton {
+  margin: 8px 0 12px;
+}
+
+.skeleton-gap.p-skeleton,
+.skeleton-row.skeleton-gap {
+  margin-top: 12px;
+}
+
+/* Text placeholders sit inside the real text element (same line height, so no layout shift) */
+.skeleton-inline.p-skeleton {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Placeholder pills keep the real pill's padding and border, with a neutral outline */
+.order-status.is-skeleton,
+.people-role.is-skeleton {
+  border-color: var(--kedak-border);
+  background: transparent;
+}
+
+/* SkeletonText: a text line's height (via an invisible character) with a 1em bar inside */
+.skeleton-text {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.skeleton-text-bar.p-skeleton {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: -0.12em;
+}
+
+/* People on phones: dates stay on one line in the three narrow figure columns */
+@media (max-width: 759px) {
+  .people-col-seen > span,
+  .people-col-joined > span {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
+/* Confirmation while loading: card-shaped preview and a neutral payment pill */
+.receipt-preview-skeleton.p-skeleton {
+  aspect-ratio: 1.586;
+  border-radius: 14px;
+}
+
+.confirm-pill.is-skeleton {
+  border: 1px solid var(--kedak-border);
+  background: transparent;
+}
+
+/* NoticePanel: full-width status message (info / warning / progress) */
+.notice-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 28px 0;
+  padding: clamp(20px, 3vw, 32px);
+  border: 1px solid var(--kedak-message-info-border);
+  border-radius: var(--kedak-card-radius);
+  background: var(--kedak-message-info-background);
+  color: var(--kedak-message-info-text);
+}
+
+.notice-panel.is-warning,
+.notice-panel.is-progress {
+  border-color: var(--kedak-message-warning-border);
+  background: var(--kedak-message-warning-background);
+  color: var(--kedak-message-warning-text);
+}
+
+.notice-panel-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+.notice-panel-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.notice-panel-title {
+  margin: 0;
+  font-size: clamp(18px, 2.2vw, 22px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+h1.notice-panel-title {
+  font-size: clamp(22px, 3vw, 28px);
+}
+
+.notice-panel-body {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.notice-panel-body p {
+  margin: 0;
+}
+
+.notice-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 12px;
+}
+
+.notice-panel-actions .p-button {
+  width: auto;
+  margin: 0;
+}
+
+@media (max-width: 520px) {
+  .notice-panel {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .notice-panel-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .notice-panel-actions .p-button {
+    width: 100%;
+  }
+}
+
+/* Products while loading: swatch in card proportions, action placeholders fill like buttons */
+.products-swatch-skeleton.p-skeleton {
+  aspect-ratio: 1.586;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.products-action-skeleton.p-skeleton {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.settings-badge.is-skeleton {
+  border-color: var(--kedak-border);
+  background: transparent;
+}
+
+.products-tile-art-skeleton.p-skeleton {
+  aspect-ratio: 1;
+  border-radius: 8px;
+}
+
+.products-category.is-skeleton {
+  cursor: default;
+}
+
+/* ActionButton: uniform secondary actions (save / edit / cancel / delete) */
+.p-button.kedak-action-button {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 18px;
+  gap: 8px;
+  border: 1px solid var(--tone-border);
+  border-radius: 8px;
+  background: var(--tone-background);
+  color: var(--tone-text);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.p-button.kedak-action-button.is-info {
+  --tone-border: var(--kedak-message-info-border);
+  --tone-background: var(--kedak-message-info-background);
+  --tone-text: var(--kedak-message-info-text);
+}
+
+.p-button.kedak-action-button.is-neutral {
+  --tone-border: var(--kedak-border);
+  --tone-background: var(--kedak-subtle);
+  --tone-text: var(--kedak-text);
+}
+
+.p-button.kedak-action-button.is-danger {
+  --tone-border: var(--kedak-danger-soft-border);
+  --tone-background: var(--kedak-danger-soft-background);
+  --tone-text: var(--kedak-danger-soft-text);
+}
+
+.p-button.kedak-action-button .p-button-icon,
+.p-button.kedak-action-button .p-button-label {
+  color: inherit;
+}
+
+.p-button.kedak-action-button:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--tone-text) 35%, var(--tone-border));
+  background: color-mix(in srgb, var(--tone-text) 8%, var(--tone-background));
+  color: var(--tone-text);
+}
+
+.p-button.kedak-action-button:focus-visible {
+  outline: 2px solid var(--tone-text);
+  outline-offset: 2px;
+}
+
+.p-button.kedak-action-button:disabled {
+  opacity: 0.55;
+}
+
+.p-button.kedak-action-button.is-full {
+  width: 100%;
+}
+
+.p-button.kedak-action-button.is-compact {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+/* A loading button keeps its own colours (only the bar shows it's working) */
+.p-button.kedak-action.p-button-loading:disabled {
+  border-color: var(--kedak-action);
+  background: var(--kedak-action);
+  color: var(--kedak-on-action);
+  opacity: 1;
+}
+
+.p-button.kedak-action-button.p-button-loading:disabled {
+  opacity: 1;
+}
+
+/* Quality check without a job: open one by reference */
+.ops-job-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 360px;
+  max-width: 480px;
+}
+
+.ops-job-jump-input.p-inputtext {
+  flex: 1 1 220px;
+  min-height: 44px;
+}
+
+.ops-job-jump .kedak-action {
+  width: auto;
+}
+
+.ops-job-jump-error {
+  flex-basis: 100%;
+}
+
+/* Bars loader: three vertical bars rising and falling (the app's one "working…" indicator).
+   Used by BarsLoader, PrimeVue buttons' loading icon, and custom buttons with .is-loading. */
+.bars-loader,
+.p-button .p-button-loading-icon,
+.is-loading > .pi {
+  display: inline-block;
+  flex: none;
+  width: 0.95em;
+  height: 1em;
+  background:
+    linear-gradient(currentColor, currentColor) 0% 100% / 22% 100% no-repeat,
+    linear-gradient(currentColor, currentColor) 50% 100% / 22% 60% no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 100% / 22% 30% no-repeat;
+  animation: kedak-bars 0.9s ease-in-out infinite;
+  vertical-align: -0.12em;
+}
+
+.p-button .p-button-loading-icon::before,
+.is-loading > .pi::before {
+  content: none;
+}
+
+@keyframes kedak-bars {
+  0%,
+  100% {
+    background-size:
+      22% 100%,
+      22% 60%,
+      22% 30%;
+  }
+  33% {
+    background-size:
+      22% 30%,
+      22% 100%,
+      22% 60%;
+  }
+  66% {
+    background-size:
+      22% 60%,
+      22% 30%,
+      22% 100%;
+  }
+}
+
+.bars-loader.is-large {
+  width: 34px;
+  height: 36px;
+  color: var(--accent);
+}
+
+/* Custom buttons (not PrimeVue) while working */
+.is-loading {
+  cursor: progress;
+}
+
+/* Page loading (first visit or a slow navigation): bars centred in the page area */
+.page-loader {
+  min-height: 55vh;
+  display: grid;
+  place-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bars-loader,
+  .p-button .p-button-loading-icon,
+  .is-loading > .pi {
+    animation-duration: 2.4s;
+  }
+}
+
+/* PrimeVue draws its loading icon as an SVG spinner: hide the arc, keep the bars */
+.p-button .p-button-loading-icon > * {
+  display: none;
 }

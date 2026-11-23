@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import ActionButton from '../components/ActionButton.vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
+import Skeleton from 'primevue/skeleton'
 import { useToast } from 'primevue/usetoast'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
 import {
@@ -259,9 +261,65 @@ function describeChange(entry: StaffUserActivity) {
       <i class="pi pi-arrow-left" aria-hidden="true"></i> People
     </RouterLink>
 
-    <p v-if="detailQuery.isPending.value" class="api-state" aria-busy="true">
-      <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading account…
-    </p>
+    <!-- Loading: the page frame and card headings render now; only the account data pulses. -->
+    <template v-if="detailQuery.isPending.value">
+      <header class="order-header person-header" aria-busy="true">
+        <div class="person-title">
+          <Skeleton shape="circle" size="64px" />
+          <div>
+            <Skeleton width="10rem" height="0.75rem" />
+            <Skeleton width="15rem" height="2.6rem" class="skeleton-title" />
+            <Skeleton width="11rem" height="1.4rem" border-radius="999px" />
+          </div>
+        </div>
+      </header>
+      <span class="visually-hidden" role="status">Loading account…</span>
+      <div class="ops-stats person-summary" aria-hidden="true">
+        <div v-for="tile in 4" :key="tile" class="ops-stat is-static">
+          <Skeleton width="36px" height="36px" border-radius="10px" />
+          <span class="ops-stat-copy">
+            <Skeleton width="4rem" height="1.2rem" />
+            <Skeleton width="5.5rem" height="0.75rem" />
+          </span>
+        </div>
+      </div>
+      <div class="order-layout" aria-hidden="true">
+        <div class="order-primary">
+          <section class="info-card ops-panel">
+            <h2>Details</h2>
+            <div v-for="row in 5" :key="row" class="skeleton-row skeleton-gap">
+              <Skeleton width="25%" height="0.85rem" />
+              <Skeleton width="50%" height="0.85rem" />
+            </div>
+          </section>
+          <section class="info-card ops-panel">
+            <h2>Orders</h2>
+            <div v-for="row in 2" :key="row" class="skeleton-row skeleton-gap">
+              <Skeleton width="40%" height="0.9rem" />
+              <Skeleton width="20%" height="0.9rem" />
+            </div>
+          </section>
+          <section class="info-card ops-history-card">
+            <h2>Activity</h2>
+            <div v-for="row in 3" :key="row" class="skeleton-row skeleton-gap">
+              <Skeleton width="50%" height="0.9rem" />
+              <Skeleton width="25%" height="0.8rem" />
+            </div>
+          </section>
+        </div>
+        <aside class="order-secondary">
+          <section class="info-card ops-panel">
+            <h2>Account emails</h2>
+            <Skeleton height="3.6rem" border-radius="10px" class="skeleton-gap" />
+            <Skeleton height="3.6rem" border-radius="10px" class="skeleton-gap" />
+          </section>
+          <section class="info-card ops-panel">
+            <h2>Role &amp; permissions</h2>
+            <Skeleton height="3.6rem" border-radius="10px" class="skeleton-gap" />
+          </section>
+        </aside>
+      </div>
+    </template>
     <p v-else-if="loadError" class="api-state is-error" role="alert">{{ loadError }}</p>
 
     <template v-else-if="person && can">
@@ -340,14 +398,10 @@ function describeChange(entry: StaffUserActivity) {
           <section class="info-card ops-panel" aria-labelledby="person-details">
             <div class="person-card-head">
               <h2 id="person-details">Details</h2>
-              <Button
+              <ActionButton
+                kind="edit"
                 v-if="can.canEdit && !editing"
-                size="small"
-                class="kedak-outline-action"
-                severity="secondary"
-                outlined
-                icon="pi pi-pencil"
-                label="Edit"
+                compact
                 @click="startEditing"
               />
             </div>
@@ -400,21 +454,8 @@ function describeChange(entry: StaffUserActivity) {
                 ><span>{{ detailErrors.form }}</span>
               </p>
               <div class="people-add-actions">
-                <Button
-                  type="button"
-                  class="kedak-outline-action"
-                  severity="secondary"
-                  outlined
-                  label="Cancel"
-                  @click="editing = false"
-                />
-                <Button
-                  type="submit"
-                  class="kedak-action"
-                  icon="pi pi-check"
-                  label="Save details"
-                  :loading="update.isPending.value"
-                />
+                <ActionButton kind="cancel" type="button" @click="editing = false" />
+                <ActionButton kind="save" label="Save details" :loading="update.isPending.value" />
               </div>
             </form>
 
@@ -521,14 +562,10 @@ function describeChange(entry: StaffUserActivity) {
                 type="button"
                 class="person-action"
                 :disabled="person.emailVerified || sendEmail.isPending.value"
+                :class="{ 'is-loading': sendingKind === 'verification' }"
                 @click="send('verification')"
               >
-                <i
-                  :class="
-                    sendingKind === 'verification' ? 'pi pi-spin pi-spinner' : 'pi pi-envelope'
-                  "
-                  aria-hidden="true"
-                ></i>
+                <i class="pi pi-envelope" aria-hidden="true"></i>
                 <span>
                   <strong>Send verification email</strong>
                   <small>{{
@@ -542,12 +579,10 @@ function describeChange(entry: StaffUserActivity) {
                 type="button"
                 class="person-action"
                 :disabled="Boolean(resetBlocked) || sendEmail.isPending.value"
+                :class="{ 'is-loading': sendingKind === 'password-reset' }"
                 @click="send('password-reset')"
               >
-                <i
-                  :class="sendingKind === 'password-reset' ? 'pi pi-spin pi-spinner' : 'pi pi-key'"
-                  aria-hidden="true"
-                ></i>
+                <i class="pi pi-key" aria-hidden="true"></i>
                 <span>
                   <strong>Send password reset</strong>
                   <small>{{ resetBlocked || 'A link to choose a new password.' }}</small>
@@ -586,12 +621,13 @@ function describeChange(entry: StaffUserActivity) {
                 <i class="pi pi-exclamation-circle" aria-hidden="true"></i
                 ><span>{{ roleError }}</span>
               </p>
-              <Button
-                class="kedak-action person-full"
-                icon="pi pi-shield"
+              <ActionButton
+                kind="save"
+                type="button"
                 label="Save role"
-                :disabled="selectedRole === person.role"
                 :loading="changeRole.isPending.value"
+                :disabled="selectedRole === person.role"
+                full
                 @click="saveRole"
               />
             </template>
@@ -669,11 +705,8 @@ function describeChange(entry: StaffUserActivity) {
                 ><span>{{ deleteError }}</span>
               </p>
               <div class="people-add-actions">
-                <Button
-                  class="kedak-outline-action"
-                  severity="secondary"
-                  outlined
-                  label="Cancel"
+                <ActionButton
+                  kind="cancel"
                   @click="((confirmingDelete = false), (deleteConfirmation = ''))"
                 />
                 <Button

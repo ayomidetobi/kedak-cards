@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionButton from '../components/ActionButton.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -12,6 +13,7 @@ import Message from 'primevue/message'
 import Password from 'primevue/password'
 import RadioButton from 'primevue/radiobutton'
 import Select from 'primevue/select'
+import Skeleton from 'primevue/skeleton'
 import { useToast } from 'primevue/usetoast'
 import CardPreview from '../components/card/CardPreview.vue'
 import CardholderNameInput from '../components/card/CardholderNameInput.vue'
@@ -29,9 +31,12 @@ import {
 } from '../services/checkoutHandoff'
 import type { PaymentProviderId } from '../data/paymentProviders'
 import { usePaymentProviders, useStartPayment } from '../queries/payments'
+import NoticePanel from '../components/NoticePanel.vue'
 import TextLink from '../components/TextLink.vue'
 import OrderTimeline from '../components/orders/OrderTimeline.vue'
-import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
+import AccountOrderRow from '../components/orders/AccountOrderRow.vue'
+import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
+import SkeletonText from '../components/skeletons/parts/SkeletonText.vue'
 import StockBadge from '../components/StockBadge.vue'
 import { PLACEHOLDER_DESIGN, useArtworkSelection } from '../composables/useArtworkSelection'
 import { useCardCustomization, validateArtworkCount } from '../composables/useCardCustomization'
@@ -253,6 +258,9 @@ const paymentReturn = usePaymentReturn(confirmedOrderId)
 }
 const confirmedOrder = computed<Order | null>(() => confirmedOrderQuery.data.value ?? null)
 const confirmedLine = computed<OrderLine | null>(() => confirmedOrder.value?.lines[0] ?? null)
+const confirmedCardCount = computed(
+  () => confirmedOrder.value?.lines.reduce((sum, line) => sum + line.quantity, 0) ?? 0,
+)
 // Designs used by cart items and the confirmed order (GET /artwork/{id}, cached).
 const designLookup = useDesignLookup(() => [
   ...store.cartItems.flatMap((item) =>
@@ -1340,21 +1348,18 @@ function continueToCheckout() {
                     :title="cartEditValidationMessage || undefined"
                     :aria-label="cartEditValidationMessage || undefined"
                   >
-                    <Button
-                      size="small"
-                      class="kedak-action cart-editor-save"
-                      label="Save"
-                      icon="pi pi-save"
+                    <ActionButton
+                      kind="save"
+                      type="button"
                       :disabled="!canSaveCartEdit"
+                      class="cart-editor-save"
                       @click="saveCartItemEdit(item)"
                     />
                   </span>
-                  <Button
-                    size="small"
-                    class="kedak-outline-action cart-editor-cancel"
-                    severity="secondary"
-                    outlined
-                    label="Cancel"
+                  <ActionButton
+                    kind="cancel"
+                    class="cart-editor-cancel"
+                    compact
                     @click="cancelCartItemEdit(item)"
                   />
                 </div>
@@ -1392,21 +1397,17 @@ function continueToCheckout() {
                 Remove this {{ item.finish }} card from your cart?
               </p>
               <div class="cart-delete-confirm-actions">
-                <Button
-                  :id="`cart-keep-${item.id}`"
-                  size="small"
-                  class="kedak-outline-action"
-                  severity="secondary"
-                  outlined
+                <ActionButton
+                  kind="cancel"
                   label="Keep item"
+                  :id="`cart-keep-${item.id}`"
+                  compact
                   @click="cancelCartItemDelete(item.id)"
                 />
-                <Button
-                  size="small"
-                  class="cart-delete-confirm-button"
-                  label="Delete"
-                  icon="pi pi-trash"
+                <ActionButton
+                  kind="delete"
                   :aria-label="`Confirm delete ${item.finish} item`"
+                  compact
                   @click="confirmCartItemDelete(item.id)"
                 />
               </div>
@@ -1416,14 +1417,11 @@ function continueToCheckout() {
               class="cart-product-actions"
               :class="{ 'is-editing': activeCartEditId === item.id }"
             >
-              <Button
+              <ActionButton
+                kind="edit"
                 v-if="activeCartEditId !== item.id"
-                size="small"
-                class="kedak-outline-action"
-                severity="secondary"
-                outlined
                 :label="isCartItemCustomized(item) ? 'Edit item' : 'Customise item'"
-                icon="pi pi-pencil"
+                compact
                 @click="editCartItem(item)"
               />
               <Button
@@ -1544,45 +1542,37 @@ function continueToCheckout() {
         Confirmation
       </li>
     </ol>
-    <section
+    <NoticePanel
       v-if="paymentRedirect"
-      class="notice-card checkout-blocked-panel checkout-redirect"
-      role="status"
+      tone="progress"
+      :title="`Taking you to ${paymentRedirect.provider}…`"
     >
-      <span class="icon-tile result-icon" aria-hidden="true">
-        <i class="pi pi-spin pi-spinner"></i>
-      </span>
-      <div>
-        <h2>Taking you to {{ paymentRedirect.provider }}…</h2>
-        <p>
-          Order {{ paymentRedirect.orderId }} is saved. Complete the payment on
-          {{ paymentRedirect.provider }}’s secure page — please don’t close this tab.
-        </p>
-      </div>
-    </section>
-    <section
+      <p>
+        Order {{ paymentRedirect.orderId }} is saved. Complete the payment on
+        {{ paymentRedirect.provider }}’s secure page — please don’t close this tab.
+      </p>
+    </NoticePanel>
+    <NoticePanel
       v-else-if="
         !store.cartItems.length ||
         !store.allItemsCustomized ||
         (cart.isCurrent.value && !cart.canCheckout.value)
       "
-      class="notice-card checkout-blocked-panel"
-      role="alert"
+      tone="warning"
+      icon="pi pi-exclamation-circle"
+      title="Finish your cart first."
     >
-      <span class="icon-tile result-icon is-pending" aria-hidden="true">
-        <i class="pi pi-exclamation-circle"></i>
-      </span>
-      <div>
-        <h2>Finish your cart first.</h2>
-        <p>{{ checkoutBlockMessage }}</p>
+      <p>{{ checkoutBlockMessage }}</p>
+      <template #actions>
         <Button
-          class="kedak-action kedak-cta"
+          class="kedak-action"
           label="Back to cart"
           icon="pi pi-arrow-left"
           @click="router.push('/cart')"
         />
-      </div>
-    </section>
+        <TextLink to="/collections">Continue shopping</TextLink>
+      </template>
+    </NoticePanel>
     <Form
       v-else
       class="checkout-form"
@@ -1911,36 +1901,26 @@ function continueToCheckout() {
       </li>
     </ol>
 
-    <p v-if="confirmStage === 'loading'" class="api-state receipt-loading" aria-busy="true">
-      <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading your order…
-    </p>
+    <NoticePanel
+      v-if="confirmStage === 'missing'"
+      :level="1"
+      icon="pi pi-envelope"
+      title="Your order details are in your email."
+    >
+      <p>Find your order with its reference (KD-…) and the email you used at checkout.</p>
+      <template #actions>
+        <Button
+          class="kedak-action"
+          label="Find your order"
+          icon="pi pi-search"
+          @click="router.push('/orders/find')"
+        />
+        <TextLink to="/collections">Continue shopping</TextLink>
+      </template>
+    </NoticePanel>
 
-    <section v-else-if="confirmStage === 'missing'" class="info-card receipt-empty">
-      <span class="icon-tile" aria-hidden="true"><i class="pi pi-envelope"></i></span>
-      <div>
-        <h1 class="receipt-empty-title">Your order details are in your email.</h1>
-        <p class="muted-copy">
-          Find your order with its reference (KD-…) and the email you used at checkout.
-        </p>
-        <div class="receipt-empty-actions">
-          <Button
-            class="kedak-action"
-            label="Find your order"
-            icon="pi pi-search"
-            @click="router.push('/orders/find')"
-          />
-          <Button
-            class="kedak-outline-action"
-            severity="secondary"
-            outlined
-            label="Continue shopping"
-            @click="router.push('/collections')"
-          />
-        </div>
-      </div>
-    </section>
-
-    <template v-else-if="confirmedOrder">
+    <template v-else>
+      <span v-if="!confirmedOrder" class="visually-hidden" role="status">Loading your order…</span>
       <header class="order-header receipt-header" aria-live="polite">
         <div class="receipt-heading">
           <span class="receipt-status-icon" :class="`is-${confirmStage}`" aria-hidden="true">
@@ -1955,36 +1935,55 @@ function continueToCheckout() {
           </span>
           <div>
             <p class="eyebrow">
-              ORDER {{ confirmedOrder.id }} · PLACED
-              {{ formatOrderDate(confirmedOrder.placedAt).toUpperCase() }}
+              ORDER {{ confirmedOrder?.id ?? confirmedOrderId }} · PLACED
+              <SkeletonText v-if="!confirmedOrder" width="6rem" /><template v-else>{{
+                formatOrderDate(confirmedOrder.placedAt).toUpperCase()
+              }}</template>
             </p>
-            <h1 class="page-title">{{ confirmCopy.title }}</h1>
-            <p class="intro-copy">{{ confirmCopy.body }}</p>
+            <h1 class="page-title">
+              <SkeletonText v-if="!confirmedOrder" width="15rem" /><template v-else>{{
+                confirmCopy.title
+              }}</template>
+            </h1>
+            <p class="intro-copy">
+              <SkeletonText v-if="!confirmedOrder" width="20rem" /><template v-else>{{
+                confirmCopy.body
+              }}</template>
+            </p>
           </div>
         </div>
-        <span class="confirm-pill receipt-pill" :class="`is-${confirmedOrder.payment.status}`">
+        <span v-if="!confirmedOrder" class="confirm-pill receipt-pill is-skeleton">
+          <SkeletonText width="5.5rem" />
+        </span>
+        <span
+          v-else
+          class="confirm-pill receipt-pill"
+          :class="`is-${confirmedOrder.payment.status}`"
+        >
           {{ paymentLabel }}
         </span>
       </header>
 
       <div class="order-layout receipt-layout">
         <div class="order-primary">
-          <PayNowPanel v-if="confirmStage === 'unpaid'" :order="confirmedOrder" />
+          <PayNowPanel v-if="confirmedOrder && confirmStage === 'unpaid'" :order="confirmedOrder" />
 
           <section class="info-card receipt-items" aria-labelledby="receipt-items-title">
             <div class="receipt-section-head">
               <h2 id="receipt-items-title">Your order</h2>
               <span class="muted-copy">
-                {{ confirmedOrder.lines.reduce((sum, line) => sum + line.quantity, 0) }}
-                {{
-                  confirmedOrder.lines.reduce((sum, line) => sum + line.quantity, 0) === 1
-                    ? 'card'
-                    : 'cards'
-                }}
+                <SkeletonText v-if="!confirmedOrder" width="3rem" />
+                <template v-else
+                  >{{ confirmedCardCount }}
+                  {{ confirmedCardCount === 1 ? 'card' : 'cards' }}</template
+                >
               </span>
             </div>
             <div class="receipt-items-body">
-              <div v-if="confirmedLine" class="receipt-preview">
+              <div v-if="!confirmedOrder" class="receipt-preview" aria-hidden="true">
+                <Skeleton width="100%" height="auto" class="receipt-preview-skeleton" />
+              </div>
+              <div v-else-if="confirmedLine" class="receipt-preview">
                 <CardPreview
                   :design="confirmedDesign"
                   :finish="confirmedLine.finish"
@@ -1998,7 +1997,17 @@ function continueToCheckout() {
               </div>
               <div class="receipt-summary">
                 <ul class="receipt-lines">
-                  <li v-for="(line, index) in confirmedOrder.lines" :key="index">
+                  <SkeletonRows v-if="!confirmedOrder" :rows="1" label="Loading your items">
+                    <li aria-hidden="true">
+                      <span class="receipt-line-copy">
+                        <strong><SkeletonText width="8.5rem" /></strong>
+                        <small><SkeletonText width="11rem" /></small>
+                        <small><SkeletonText width="4rem" /></small>
+                      </span>
+                      <strong><SkeletonText width="3rem" /></strong>
+                    </li>
+                  </SkeletonRows>
+                  <li v-for="(line, index) in confirmedOrder?.lines ?? []" :key="index">
                     <span class="receipt-line-copy">
                       <strong>{{ line.finish }} metal card</strong>
                       <small>
@@ -2013,15 +2022,27 @@ function continueToCheckout() {
                 <dl class="receipt-totals">
                   <div>
                     <dt>Subtotal</dt>
-                    <dd>{{ formatMoney(confirmedOrder.subtotal) }}</dd>
+                    <dd>
+                      <SkeletonText v-if="!confirmedOrder" width="3rem" /><template v-else>{{
+                        formatMoney(confirmedOrder.subtotal)
+                      }}</template>
+                    </dd>
                   </div>
                   <div>
                     <dt>Tracked return delivery</dt>
-                    <dd>{{ formatMoney(confirmedOrder.delivery) }}</dd>
+                    <dd>
+                      <SkeletonText v-if="!confirmedOrder" width="3rem" /><template v-else>{{
+                        formatMoney(confirmedOrder.delivery)
+                      }}</template>
+                    </dd>
                   </div>
                   <div class="is-total">
                     <dt>Total</dt>
-                    <dd>{{ formatMoney(confirmedOrder.total) }}</dd>
+                    <dd>
+                      <SkeletonText v-if="!confirmedOrder" width="3.5rem" /><template v-else>{{
+                        formatMoney(confirmedOrder.total)
+                      }}</template>
+                    </dd>
                   </div>
                 </dl>
               </div>
@@ -2031,7 +2052,7 @@ function continueToCheckout() {
           <!-- Same step tracker as the order page (done / in progress / upcoming). -->
           <section class="info-card account-timeline" aria-labelledby="confirm-next-title">
             <h2 id="confirm-next-title">Order progress</h2>
-            <OrderTimeline :order="confirmedOrder" />
+            <OrderTimeline :order="confirmedOrder" :loading="!confirmedOrder" />
           </section>
         </div>
 
@@ -2042,20 +2063,39 @@ function continueToCheckout() {
           >
             <h2 id="receipt-facts-title">Order details</h2>
             <div class="summary-row">
-              <span>Reference</span><strong>{{ confirmedOrder.id }}</strong>
+              <span>Reference</span><strong>{{ confirmedOrder?.id ?? confirmedOrderId }}</strong>
             </div>
             <div class="summary-row">
-              <span>Placed</span><strong>{{ formatOrderDate(confirmedOrder.placedAt) }}</strong>
+              <span>Placed</span
+              ><strong
+                ><SkeletonText v-if="!confirmedOrder" width="5.5rem" /><template v-else>{{
+                  formatOrderDate(confirmedOrder.placedAt)
+                }}</template></strong
+              >
             </div>
             <div class="summary-row">
-              <span>Payment</span><strong>{{ paymentLabel }}</strong>
+              <span>Payment</span
+              ><strong
+                ><SkeletonText v-if="!confirmedOrder" width="5.5rem" /><template v-else>{{
+                  paymentLabel
+                }}</template></strong
+              >
             </div>
             <div class="summary-row">
               <span>Updates to</span
-              ><strong class="receipt-email">{{ confirmedOrder.email }}</strong>
+              ><strong class="receipt-email"
+                ><SkeletonText v-if="!confirmedOrder" width="10rem" /><template v-else>{{
+                  confirmedOrder.email
+                }}</template></strong
+              >
             </div>
             <div class="summary-total">
-              <strong>Total</strong><strong>{{ formatMoney(confirmedOrder.total) }}</strong>
+              <strong>Total</strong
+              ><strong
+                ><SkeletonText v-if="!confirmedOrder" width="3.5rem" /><template v-else>{{
+                  formatMoney(confirmedOrder.total)
+                }}</template></strong
+              >
             </div>
             <Button
               class="kedak-action receipt-view-order"
@@ -2073,9 +2113,14 @@ function continueToCheckout() {
           <section class="notice-card account-security receipt-notice">
             <h2><i class="pi pi-bell" aria-hidden="true"></i> We’ll keep you posted</h2>
             <p>
-              We’ll email <strong>{{ confirmedOrder.email }}</strong> at every step: payment, card
-              received, dispatch with tracking, and delivery. Your send-in guide with packing
-              instructions arrives by email too.
+              We’ll email
+              <strong
+                ><SkeletonText v-if="!confirmedOrder" width="10rem" /><template v-else>{{
+                  confirmedOrder.email
+                }}</template></strong
+              >
+              at every step: payment, card received, dispatch with tracking, and delivery. Your
+              send-in guide with packing instructions arrives by email too.
             </p>
             <p>Never include your PIN or security code when you post your card.</p>
             <TextLink to="/help">How the process works</TextLink>
@@ -2122,9 +2167,11 @@ function continueToCheckout() {
             </span>
           </div>
 
-          <p v-if="accountOrdersQuery.isPending.value" class="api-state" aria-busy="true">
-            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i> Loading your orders…
-          </p>
+          <ul v-if="accountOrdersQuery.isPending.value" class="account-order-list">
+            <SkeletonRows :rows="3" label="Loading your orders">
+              <AccountOrderRow loading />
+            </SkeletonRows>
+          </ul>
           <p v-else-if="accountOrdersQuery.isError.value" class="api-state is-error" role="alert">
             {{ errorMessage(accountOrdersQuery.error.value, 'Your orders couldn’t load.') }}
             <button type="button" class="api-retry" @click="accountOrdersQuery.refetch()">
@@ -2132,21 +2179,7 @@ function continueToCheckout() {
             </button>
           </p>
           <ul v-else-if="accountOrders.length" class="account-order-list">
-            <li v-for="order in accountOrders" :key="order.id">
-              <RouterLink :to="`/account/orders/${order.id}`" class="account-order-row">
-                <span class="account-order-row-main">
-                  <strong>Order {{ order.id }}</strong>
-                  <small>
-                    Placed {{ formatOrderDate(order.placedAt) }} · {{ order.itemsSummary }}
-                  </small>
-                </span>
-                <span class="account-order-row-meta">
-                  <OrderStatusBadge :status="order.status" />
-                  <strong>{{ formatMoney(order.total) }}</strong>
-                </span>
-                <i class="pi pi-chevron-right account-link-chevron" aria-hidden="true"></i>
-              </RouterLink>
-            </li>
+            <AccountOrderRow v-for="order in accountOrders" :key="order.id" :order="order" />
           </ul>
           <Button
             v-if="accountOrdersQuery.hasNextPage.value"
@@ -2276,12 +2309,12 @@ function continueToCheckout() {
                     errorMessage(passwordMutation.error.value, 'Your password couldn’t be changed.')
                   }}</span>
                 </p>
-                <Button
-                  type="submit"
-                  class="kedak-action"
+                <ActionButton
+                  kind="save"
                   label="Update password"
                   :loading="passwordMutation.isPending.value"
                   :disabled="!currentPassword || !newPasswordValid"
+                  full
                 />
               </form>
             </template>
@@ -2301,11 +2334,7 @@ function continueToCheckout() {
               >
                 <i
                   :class="
-                    verificationMutation.isPending.value
-                      ? 'pi pi-spin pi-spinner'
-                      : verificationMutation.isSuccess.value
-                        ? 'pi pi-check-circle'
-                        : 'pi pi-envelope'
+                    verificationMutation.isSuccess.value ? 'pi pi-check-circle' : 'pi pi-envelope'
                   "
                   aria-hidden="true"
                 ></i>

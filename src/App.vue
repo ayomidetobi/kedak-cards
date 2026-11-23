@@ -4,15 +4,15 @@ import { useRoute, useRouter, type RouteLocationNormalized } from 'vue-router'
 import AppFooter from './components/AppFooter.vue'
 import AppHeader from './components/AppHeader.vue'
 import CartQuickView from './components/CartQuickView.vue'
-import { skeletonForRoute } from './components/skeletons'
+import BarsLoader from './components/BarsLoader.vue'
 import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 
-// Show the destination page's skeleton while a navigation is slow (e.g. its code chunk is
-// downloading). The short delay stops fast navigations from flashing a placeholder.
+// Show the bars loader while a navigation is slow (e.g. its code chunk is downloading). The
+// short delay stops fast navigations from flashing it.
 const SKELETON_DELAY_MS = 150
 const pendingRoute = shallowRef<RouteLocationNormalized | null>(null)
 let skeletonTimer: ReturnType<typeof setTimeout> | undefined
@@ -51,18 +51,18 @@ watch(
     }
   },
 )
-
-// Before the first page has loaded, use the skeleton for the URL being opened.
-const initialSkeleton = skeletonForRoute(router.resolve(window.location.pathname).name)
 </script>
 
 <template>
   <div class="app-shell">
     <AppHeader />
     <RouterView v-slot="{ Component }">
-      <component :is="skeletonForRoute(pendingRoute.name)" v-if="pendingRoute" />
-      <component :is="Component" v-else-if="Component" />
-      <component :is="initialSkeleton" v-else />
+      <!-- Page loads (first visit or a slow navigation): the bars loader in the page area;
+           header and footer stay. -->
+      <main v-if="pendingRoute || !Component" class="journey-main page-loader" aria-busy="true">
+        <BarsLoader size="large" label="Loading page" />
+      </main>
+      <component :is="Component" v-else />
     </RouterView>
     <AppFooter />
     <!-- Hidden in checkout and on the confirmation page, where it would cover the pay buttons. -->

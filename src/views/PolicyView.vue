@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import TextLink from '../components/TextLink.vue'
-import PageSkeleton from '../components/skeletons/pages/PageSkeleton.vue'
+import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
+import SkeletonText from '../components/skeletons/parts/SkeletonText.vue'
 import { legal } from '../data/legal'
 import { usePolicyQuery } from '../queries/catalog'
 import { errorMessage } from '../services/api/errors'
@@ -34,9 +35,11 @@ function formatPolicyDate(value: string) {
   <main class="journey-main policy-main">
     <TextLink to="/" direction="back">Back to home</TextLink>
 
-    <PageSkeleton v-if="policyQuery.isPending.value" />
-
-    <section v-else-if="policyQuery.isError.value || !policy" class="info-card" role="alert">
+    <section
+      v-if="!policyQuery.isPending.value && (policyQuery.isError.value || !policy)"
+      class="info-card"
+      role="alert"
+    >
       <p class="api-state is-error">
         {{ errorMessage(policyQuery.error.value, 'This policy couldn’t load.') }}
         <button type="button" class="api-retry" @click="policyQuery.refetch()">Try again</button>
@@ -45,13 +48,26 @@ function formatPolicyDate(value: string) {
 
     <template v-else>
       <header class="policy-header">
-        <p class="eyebrow">POLICIES / {{ policy.slug.toUpperCase() }}</p>
-        <h1 class="page-title">{{ policy.title }}</h1>
-        <p class="intro-copy">{{ policy.summary }}</p>
-        <p class="policy-updated">Last updated {{ formatPolicyDate(policy.lastUpdated) }}</p>
+        <p class="eyebrow">POLICIES / {{ slug.toUpperCase() }}</p>
+        <h1 class="page-title">
+          <SkeletonText v-if="!policy" width="18rem" /><template v-else>{{
+            policy.title
+          }}</template>
+        </h1>
+        <p class="intro-copy">
+          <SkeletonText v-if="!policy" width="34rem" /><template v-else>{{
+            policy.summary
+          }}</template>
+        </p>
+        <p class="policy-updated">
+          Last updated <SkeletonText v-if="!policy" width="6rem" /><template v-else>{{
+            formatPolicyDate(policy.lastUpdated)
+          }}</template>
+        </p>
       </header>
+      <span v-if="!policy" class="visually-hidden" role="status">Loading policy…</span>
 
-      <p v-if="legal.isDraft" class="checkout-account-note policy-draft" role="note">
+      <p v-if="policy && legal.isDraft" class="checkout-account-note policy-draft" role="note">
         <i class="pi pi-info-circle" aria-hidden="true"></i>
         <span>
           Draft policy: company details in brackets still need to be filled in, and the wording
@@ -66,8 +82,8 @@ function formatPolicyDate(value: string) {
             <li v-for="item in otherPolicies" :key="item.slug">
               <RouterLink
                 :to="item.to"
-                :class="{ 'is-active': policy.slug === item.slug }"
-                :aria-current="policy.slug === item.slug ? 'page' : undefined"
+                :class="{ 'is-active': slug === item.slug }"
+                :aria-current="slug === item.slug ? 'page' : undefined"
               >
                 {{ item.label }}
               </RouterLink>
@@ -75,15 +91,36 @@ function formatPolicyDate(value: string) {
           </ul>
           <p class="eyebrow policy-toc-label">ON THIS PAGE</p>
           <ul class="policy-toc">
-            <li v-for="section in policy.sections" :key="section.id">
+            <SkeletonRows v-if="!policy" :rows="5" label="Loading contents">
+              <template #default="{ index }">
+                <li aria-hidden="true">
+                  <a><SkeletonText :width="index % 2 ? '9rem' : '7rem'" /></a>
+                </li>
+              </template>
+            </SkeletonRows>
+            <li v-for="section in policy?.sections ?? []" :key="section.id">
               <a :href="`#${section.id}`">{{ section.heading }}</a>
             </li>
           </ul>
         </nav>
 
         <article class="info-card policy-content">
+          <template v-if="!policy">
+            <section v-for="index in 3" :key="index" class="policy-section" aria-hidden="true">
+              <h2><SkeletonText :width="index === 2 ? '10rem' : '13rem'" /></h2>
+              <p>
+                <SkeletonText width="100%" /><br /><SkeletonText width="100%" /><br /><SkeletonText
+                  width="70%"
+                />
+              </p>
+              <ul v-if="index === 2">
+                <li><SkeletonText width="60%" /></li>
+                <li><SkeletonText width="45%" /></li>
+              </ul>
+            </section>
+          </template>
           <section
-            v-for="section in policy.sections"
+            v-for="section in policy?.sections ?? []"
             :id="section.id"
             :key="section.id"
             class="policy-section"

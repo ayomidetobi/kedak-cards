@@ -119,9 +119,14 @@ function onSelect(event: { originalEvent?: Event; files: File[] }) {
           severity="secondary"
           outlined
           :label="
-            uploading ? 'Uploading…' : uploadedArtworks.length ? 'Replace artwork' : 'Choose artwork'
+            uploading
+              ? 'Uploading…'
+              : uploadedArtworks.length
+                ? 'Replace artwork'
+                : 'Choose artwork'
           "
-          :icon="uploading ? 'pi pi-spin pi-spinner' : 'pi pi-upload'"
+          icon="pi pi-upload"
+          :loading="uploading"
           :disabled="uploading"
           @click="chooseCallback()"
         />
