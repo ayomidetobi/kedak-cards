@@ -93,10 +93,9 @@ const checkoutBlockedReason = computed(() => {
   return `To check out, ${reasons.join(' and ')}.`
 })
 
-function goToCheckout() {
-  if (!cart.canCheckout.value) return
+function goToCart() {
   closePopover()
-  void router.push('/checkout')
+  void router.push('/cart')
 }
 
 function focusById(id: string) {
@@ -346,21 +345,34 @@ function removeItem(item: CardCartItem) {
             <i class="pi pi-info-circle" aria-hidden="true"></i>
             <span>{{ checkoutBlockedReason }}</span>
           </p>
+          <!-- The full cart is the main action (review, edit, then check out from there). -->
           <Button
             type="button"
             class="kedak-action cart-quick-view-checkout"
-            label="Checkout"
+            label="View full cart"
             icon="pi pi-arrow-right"
             icon-pos="right"
-            :disabled="!cart.canCheckout.value"
-            :loading="cart.isValidating.value"
-            :aria-describedby="
-              checkoutBlockedReason ? `cart-quick-view-blocked-${variant}` : undefined
-            "
-            @click="goToCheckout"
+            @click="goToCart"
           />
           <div class="cart-quick-view-secondary">
-            <TextLink to="/cart" @click="closePopover">View full cart</TextLink>
+            <TextLink v-if="cart.canCheckout.value" to="/checkout" @click="closePopover">
+              Checkout
+            </TextLink>
+            <span
+              v-else
+              class="cart-quick-view-checkout-disabled"
+              aria-disabled="true"
+              :aria-describedby="
+                checkoutBlockedReason ? `cart-quick-view-blocked-${variant}` : undefined
+              "
+            >
+              <i
+                v-if="cart.isValidating.value"
+                class="pi pi-spin pi-spinner"
+                aria-hidden="true"
+              ></i>
+              Checkout
+            </span>
           </div>
         </footer>
       </section>

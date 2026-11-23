@@ -132,6 +132,24 @@ export const router = createRouter({
       component: () => import('./views/OpsCompanyView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/ops/users',
+      name: 'ops-users',
+      component: () => import('./views/OpsUsersView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/ops/users/:id',
+      name: 'ops-user',
+      component: () => import('./views/OpsUserView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/ops/products',
+      name: 'ops-products',
+      component: () => import('./views/OpsProductsView.vue'),
+      meta: { requiresAuth: true },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

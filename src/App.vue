@@ -65,7 +65,13 @@ const initialSkeleton = skeletonForRoute(router.resolve(window.location.pathname
       <component :is="initialSkeleton" v-else />
     </RouterView>
     <AppFooter />
-    <CartQuickView v-if="!route.path.startsWith('/ops')" variant="floating" />
+    <!-- Hidden in checkout and on the confirmation page, where it would cover the pay buttons. -->
+    <CartQuickView
+      v-if="
+        !route.path.startsWith('/ops') && !['checkout', 'confirmed'].includes(String(route.name))
+      "
+      variant="floating"
+    />
     <Toast position="top-right" class="kedak-toast" />
   </div>
 </template>

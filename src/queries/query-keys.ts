@@ -1,6 +1,8 @@
 import type { CardCategory, CardFinish } from '../types/card'
 import type { CartItemInput, OrderStatus, Policy } from '../types/api'
 import type { OpsOrderFilters } from '../services/api/endpoints/ops'
+import type { StaffUserFilters } from '../services/api/endpoints/users'
+import type { StaffArtworkFilters } from '../services/api/endpoints/products'
 
 /**
  * Query-key factory: every server-state key is built here so invalidation stays consistent.
@@ -46,6 +48,16 @@ export const queryKeys = {
     company: () => ['ops', 'company'] as const,
     policies: () => ['ops', 'policies'] as const,
     policy: (slug: string) => ['ops', 'policies', slug] as const,
+    usersRoot: () => ['ops', 'users'] as const,
+    usersSummary: () => ['ops', 'users', 'summary'] as const,
+    users: (filters: Omit<StaffUserFilters, 'cursor'>) =>
+      ['ops', 'users', 'list', filters] as const,
+    user: (id: string) => ['ops', 'users', 'detail', id] as const,
+    finishes: () => ['ops', 'catalog', 'finishes'] as const,
+    artworkRoot: () => ['ops', 'catalog', 'artwork'] as const,
+    artworkCategories: () => ['ops', 'catalog', 'artwork', 'categories'] as const,
+    artwork: (filters: Omit<StaffArtworkFilters, 'cursor'>) =>
+      ['ops', 'catalog', 'artwork', 'list', filters] as const,
   },
 }
 

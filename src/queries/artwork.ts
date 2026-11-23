@@ -4,8 +4,8 @@ import { getArtwork, listArtwork, listArtworkCategories } from '../services/api/
 import type { CardCategory, CardDesign } from '../types/card'
 import { queryKeys } from './query-keys'
 
-/** Artwork changes only when the catalogue is re-imported. */
-export const ARTWORK_STALE_TIME = 30 * 60_000
+/** Staff can edit artwork (Products page); shoppers pick up changes within 10 minutes. */
+export const ARTWORK_STALE_TIME = 10 * 60_000
 
 export function useArtworkCategoriesQuery() {
   return useQuery({
@@ -34,7 +34,9 @@ export function useArtworkDesignsQuery(category: MaybeRefOrGetter<CardCategory |
 
 /** A design already loaded as part of any category list, so single lookups don't refetch. */
 function cachedDesign(client: QueryClient, designId: string): CardDesign | undefined {
-  for (const [, designs] of client.getQueriesData<CardDesign[]>({ queryKey: ['artwork', 'designs'] })) {
+  for (const [, designs] of client.getQueriesData<CardDesign[]>({
+    queryKey: ['artwork', 'designs'],
+  })) {
     const found = designs?.find((design) => design.id === designId)
     if (found) return found
   }

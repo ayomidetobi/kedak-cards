@@ -47,13 +47,43 @@ watch(
         <template v-if="route.path.startsWith('/ops')">
           <RouterLink to="/ops">Workbench</RouterLink>
           <RouterLink to="/ops/quality-check">Quality check</RouterLink>
+          <RouterLink
+            v-if="auth.role === 'ops' || auth.isAdmin"
+            to="/ops/users"
+            :class="{ 'router-link-active': route.path.startsWith('/ops/users/') }"
+            >People</RouterLink
+          >
+          <RouterLink v-if="auth.role === 'ops' || auth.isAdmin" to="/ops/products"
+            >Products</RouterLink
+          >
           <RouterLink to="/ops/company">Company & policies</RouterLink>
+          <!-- Back to the storefront and the staff member's own account -->
+          <span class="nav-divider" aria-hidden="true"></span>
+          <RouterLink to="/" class="nav-switch" aria-label="Shop" title="Back to the shop">
+            <i class="pi pi-shop" aria-hidden="true"></i><span class="nav-switch-label">Shop</span>
+          </RouterLink>
+          <RouterLink
+            to="/account"
+            class="nav-switch"
+            aria-label="Your account"
+            title="Your account"
+          >
+            <i class="pi pi-user" aria-hidden="true"></i
+            ><span class="nav-switch-label">Account</span>
+          </RouterLink>
         </template>
         <template v-else>
           <RouterLink to="/collections">Collections</RouterLink>
           <RouterLink to="/help">How it works</RouterLink>
           <RouterLink v-if="auth.isSignedIn" to="/account">Account</RouterLink>
           <RouterLink v-else to="/login">Log in</RouterLink>
+          <!-- Staff (production, ops, admin): jump to the ops workspace -->
+          <template v-if="auth.isStaff">
+            <span class="nav-divider" aria-hidden="true"></span>
+            <RouterLink to="/ops" class="nav-switch">
+              <i class="pi pi-briefcase" aria-hidden="true"></i> Ops
+            </RouterLink>
+          </template>
         </template>
       </nav>
       <div class="header-actions">

@@ -4,7 +4,21 @@ import * as companyApi from '../services/api/endpoints/company'
 import type { Company, PolicyInput, PolicySlug } from '../services/api/endpoints/company'
 import * as opsApi from '../services/api/endpoints/ops'
 import type { OpsOrderFilters } from '../services/api/endpoints/ops'
-import type { AdvanceStatusRequest, Order, RefundDecisionRequest } from '../types/api'
+import * as productsApi from '../services/api/endpoints/products'
+import type {
+  StaffArtworkFilters,
+  StaffFinishInput,
+  StaffFinishList,
+} from '../services/api/endpoints/products'
+import type { CardFinish } from '../types/card'
+import * as usersApi from '../services/api/endpoints/users'
+import type {
+  CreateStaffUserInput,
+  StaffUserDetail,
+  StaffUserFilters,
+  UpdateStaffUserInput,
+} from '../services/api/endpoints/users'
+import type { AdvanceStatusRequest, Order, RefundDecisionRequest, UserRole } from '../types/api'
 import { queryKeys } from './query-keys'
 
 export function useOpsOrders(filters: MaybeRefOrGetter<Omit<OpsOrderFilters, 'cursor'>>) {
@@ -105,5 +119,201 @@ export function useUpdateOpsPolicy() {
       void client.invalidateQueries({ queryKey: queryKeys.ops.policies() })
       void client.invalidateQueries({ queryKey: queryKeys.policies.all() })
     },
+  })
+}
+
+// --- People (staff user management) --------------------------------------------------------
+
+export function useStaffUsers(filters: MaybeRefOrGetter<Omit<StaffUserFilters, 'cursor'>>) {
+  return useInfiniteQuery({
+    queryKey: computed(() => queryKeys.ops.users(toValue(filters))),
+    queryFn: ({ pageParam, signal }) =>
+      usersApi.listStaffUsers({ ...toValue(filters), cursor: pageParam }, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor,
+    staleTime: 15_000,
+  })
+}
+
+export function useStaffUser(id: MaybeRefOrGetter<string | null>) {
+  return useQuery({
+    queryKey: computed(() => queryKeys.ops.user(toValue(id) ?? '')),
+    queryFn: ({ signal }) => usersApi.getStaffUser(toValue(id)!, signal),
+    enabled: computed(() => Boolean(toValue(id))),
+    staleTime: 10_000,
+  })
+}
+
+/** Store the fresh detail and refresh every list (counts, filters and sorting may change). */
+function useStaffUserSaved() {
+  const client = useQueryClient()
+  return (detail: StaffUserDetail) => {
+    client.setQueryData(queryKeys.ops.user(detail.user.id), detail)
+    void client.invalidateQueries({ queryKey: queryKeys.ops.usersRoot() })
+  }
+}
+
+export function useCreateStaffUser() {
+  const saved = useStaffUserSaved()
+  return useMutation({
+    mutationFn: (payload: CreateStaffUserInput) => usersApi.createStaffUser(payload),
+    onSuccess: saved,
+  })
+}
+
+export function useUpdateStaffUser() {
+  const saved = useStaffUserSaved()
+  return useMutation({
+    mutationFn: (input: { id: string; payload: UpdateStaffUserInput }) =>
+      usersApi.updateStaffUser(input.id, input.payload),
+    onSuccess: saved,
+  })
+}
+
+export function useChangeStaffUserRole() {
+  const saved = useStaffUserSaved()
+  return useMutation({
+    mutationFn: (input: { id: string; role: UserRole }) =>
+      usersApi.changeStaffUserRole(input.id, input.role),
+    onSuccess: saved,
+  })
+}
+
+export function useDeleteStaffUser() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => usersApi.deleteStaffUser(id),
+    onSuccess: (_data, id) => {
+      client.removeQueries({ queryKey: queryKeys.ops.user(id) })
+      void client.invalidateQueries({ queryKey: queryKeys.ops.usersRoot() })
+    },
+  })
+}
+
+export function useSendStaffUserEmail() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: string; kind: 'verification' | 'password-reset' }) =>
+      usersApi.sendStaffUserEmail(input.id, input.kind),
+    // The account's activity log gains an entry.
+    onSuccess: (_data, input) =>
+      void client.invalidateQueries({ queryKey: queryKeys.ops.user(input.id) }),
+  })
+}
+
+export function useStaffUserSummary() {
+  return useQuery({
+    queryKey: queryKeys.ops.usersSummary(),
+    queryFn: ({ signal }) => usersApi.getStaffUserSummary(signal),
+    staleTime: 30_000,
+  })
+}
+
+// --- Products (finishes and artwork) --------------------------------------------------------
+
+/** Staff edits also refresh the storefront's own copies (finishes, artwork) in this browser. */
+function useRefreshStorefrontCatalog() {
+  const client = useQueryClient()
+  return () => {
+    void client.invalidateQueries({ queryKey: queryKeys.catalog.finishes() })
+    void client.invalidateQueries({ queryKey: queryKeys.artwork.all() })
+  }
+}
+
+export function useStaffFinishes() {
+  return useQuery({
+    queryKey: queryKeys.ops.finishes(),
+    queryFn: ({ signal }) => productsApi.listStaffFinishes(signal),
+    staleTime: 30_000,
+  })
+}
+
+function useFinishesSaved() {
+  const client = useQueryClient()
+  const refreshStorefront = useRefreshStorefrontCatalog()
+  return (list: StaffFinishList) => {
+    client.setQueryData(queryKeys.ops.finishes(), list)
+    refreshStorefront()
+  }
+}
+
+export function useCreateStaffFinish() {
+  const saved = useFinishesSaved()
+  return useMutation({
+    mutationFn: (payload: StaffFinishInput & { name: CardFinish }) =>
+      productsApi.createStaffFinish(payload),
+    onSuccess: saved,
+  })
+}
+
+export function useUpdateStaffFinish() {
+  const saved = useFinishesSaved()
+  return useMutation({
+    mutationFn: (input: { name: CardFinish; payload: StaffFinishInput }) =>
+      productsApi.updateStaffFinish(input.name, input.payload),
+    onSuccess: saved,
+  })
+}
+
+export function useDeleteStaffFinish() {
+  const saved = useFinishesSaved()
+  return useMutation({
+    mutationFn: (name: CardFinish) => productsApi.deleteStaffFinish(name),
+    onSuccess: saved,
+  })
+}
+
+export function useStaffArtworkCategories() {
+  return useQuery({
+    queryKey: queryKeys.ops.artworkCategories(),
+    queryFn: ({ signal }) => productsApi.listStaffArtworkCategories(signal),
+    staleTime: 30_000,
+  })
+}
+
+export function useStaffArtwork(filters: MaybeRefOrGetter<Omit<StaffArtworkFilters, 'cursor'>>) {
+  return useInfiniteQuery({
+    queryKey: computed(() => queryKeys.ops.artwork(toValue(filters))),
+    queryFn: ({ pageParam, signal }) =>
+      productsApi.listStaffArtwork({ ...toValue(filters), cursor: pageParam }, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor,
+    staleTime: 30_000,
+  })
+}
+
+function useArtworkChanged() {
+  const client = useQueryClient()
+  const refreshStorefront = useRefreshStorefrontCatalog()
+  return () => {
+    void client.invalidateQueries({ queryKey: queryKeys.ops.artworkRoot() })
+    refreshStorefront()
+  }
+}
+
+export function useCreateStaffArtwork() {
+  const changed = useArtworkChanged()
+  return useMutation({
+    mutationFn: productsApi.createStaffArtwork,
+    onSuccess: changed,
+  })
+}
+
+export function useUpdateStaffArtwork() {
+  const changed = useArtworkChanged()
+  return useMutation({
+    mutationFn: (input: {
+      id: string
+      payload: { name?: string; isPublished?: boolean; file?: File | null }
+    }) => productsApi.updateStaffArtwork(input.id, input.payload),
+    onSuccess: changed,
+  })
+}
+
+export function useDeleteStaffArtwork() {
+  const changed = useArtworkChanged()
+  return useMutation({
+    mutationFn: (id: string) => productsApi.deleteStaffArtwork(id),
+    onSuccess: changed,
   })
 }

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import type { PendingCheckout } from '../services/checkoutHandoff'
 import {
   MAX_ITEM_QUANTITY,
   type ArtworkAssignment,
@@ -46,7 +47,9 @@ function hasSameCustomization(left: CardCustomization, right: CardCustomization)
     (left.customizationMode === 'custom' ||
       (left.category === right.category && left.designId === right.designId)) &&
     left.uploadedArtworks.length === right.uploadedArtworks.length &&
-    left.uploadedArtworks.every((artwork, index) => artwork.id === right.uploadedArtworks[index]?.id)
+    left.uploadedArtworks.every(
+      (artwork, index) => artwork.id === right.uploadedArtworks[index]?.id,
+    )
   )
 }
 
@@ -307,6 +310,21 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
   function clearCart() {
     cartItems.value = []
     editingCartItemId.value = null
+    pendingCheckout.value = null
+  }
+
+  /** An unpaid order already created for the current cart (see services/checkoutHandoff). */
+  const pendingCheckout = ref<PendingCheckout | null>(null)
+
+  function setPendingCheckout(pending: PendingCheckout | null) {
+    pendingCheckout.value = pending
+  }
+
+  /** Puts the cart back after the customer cancelled payment on Stripe/Paystack. */
+  function restoreCheckout(pending: PendingCheckout) {
+    cartItems.value = pending.items
+    editingCartItemId.value = null
+    pendingCheckout.value = pending
   }
 
   function setEngravingStyle(style: EngravingStyle) {
@@ -336,6 +354,9 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     compatibilityAnswers,
     compatibilityResult,
     lastPlacedOrderId,
+    pendingCheckout,
+    setPendingCheckout,
+    restoreCheckout,
     customization,
     cartItems,
     cartItemCount,

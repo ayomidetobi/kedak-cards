@@ -327,6 +327,20 @@ async function signOut() {
             <RouterLink to="/ops/quality-check" class="settings-shortcut">
               <i class="pi pi-check-square" aria-hidden="true"></i> Quality check
             </RouterLink>
+            <RouterLink
+              v-if="auth.role === 'ops' || auth.isAdmin"
+              to="/ops/users"
+              class="settings-shortcut"
+            >
+              <i class="pi pi-users" aria-hidden="true"></i> People
+            </RouterLink>
+            <RouterLink
+              v-if="auth.role === 'ops' || auth.isAdmin"
+              to="/ops/products"
+              class="settings-shortcut"
+            >
+              <i class="pi pi-tags" aria-hidden="true"></i> Products
+            </RouterLink>
             <RouterLink to="/ops/company" class="settings-shortcut">
               <i class="pi pi-building" aria-hidden="true"></i> Company & policies
             </RouterLink>
@@ -342,6 +356,13 @@ async function signOut() {
               <span>
                 Edit company information and policies on
                 <RouterLink to="/ops/company">Company & policies</RouterLink>.
+              </span>
+            </li>
+            <li>
+              <i class="pi pi-users" aria-hidden="true"></i>
+              <span>
+                Give staff roles, edit staff accounts and delete accounts on
+                <RouterLink to="/ops/users">People</RouterLink>.
               </span>
             </li>
             <li>
