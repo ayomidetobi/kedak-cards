@@ -12,7 +12,9 @@
   NODE_VERSION = "22"
   # Relative: requests go to this site and are proxied to the API below.
   VITE_API_BASE_URL = "/api/v1"
-  # VITE_GOOGLE_CLIENT_ID is set in Netlify > Site configuration > Environment variables.
+  # Google sign-in client ID: public by design (sent to every browser), so it lives here and every
+  # build includes it. Must match GOOGLE_OAUTH_CLIENT_ID on the API (Cloud Run).
+  VITE_GOOGLE_CLIENT_ID = "940638813442-ortde3bn9hip39jhe6sukio60u7sn96p.apps.googleusercontent.com"
 
 # API proxy (must come before the SPA fallback).
 [[redirects]]
