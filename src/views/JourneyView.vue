@@ -7,6 +7,8 @@ import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
 import { useMutation } from '@tanstack/vue-query'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import DeliveryQuoteOption from '../components/checkout/DeliveryQuoteOption.vue'
+import type { ShippingQuote } from '../services/api/endpoints/shipping'
 import FloatLabel from 'primevue/floatlabel'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
@@ -208,7 +210,17 @@ const cartCheckMessage = computed(() => {
   if (cart.isValidating.value && !cart.isCurrent.value) return 'Checking prices and stock…'
   return ''
 })
-const total = computed(() => cart.total.value)
+// Return delivery: the quote for the address typed at checkout (live carrier rate or flat
+// fee); before that, the flat fee from the cart check.
+const shippingQuote = ref<ShippingQuote | null>(null)
+const deliveryFee = computed(() => shippingQuote.value?.delivery ?? cart.delivery.value)
+const total = computed(() => {
+  const subtotal = cart.subtotal.value
+  const delivery = deliveryFee.value
+  return subtotal && delivery
+    ? { amount: subtotal.amount + delivery.amount, currency: subtotal.currency }
+    : cart.total.value
+})
 const hasChip = ref(store.compatibilityAnswers.hasChip)
 const compatibilityResolver = zodResolver(compatibilitySchema)
 const checkoutResolver = zodResolver(checkoutSchema)
@@ -783,15 +795,18 @@ async function submitCheckout(event: FormSubmitEvent) {
       city: details.city.trim(),
       postcode: details.postcode.trim(),
       country: details.country,
+      countryCode: phoneCountryOptions.find((option) => option.name === details.country)?.code,
     },
     items: cartPayload.value,
     acknowledgement: true,
+    shippingQuote: shippingQuote.value?.quoteToken ?? undefined,
   }
   try {
     // Checking out again after a cancelled payment, unchanged: pay for the order already
     // created instead of placing a duplicate. Any change places a new order (the old unpaid one
     // is cancelled automatically after UNPAID_ORDER_TTL_HOURS).
-    const signature = JSON.stringify(payload)
+    // The quote token is re-issued on every quote, so it isn't part of "unchanged".
+    const signature = JSON.stringify({ ...payload, shippingQuote: undefined })
     const reuse = store.pendingCheckout?.signature === signature ? store.pendingCheckout : null
     const order = reuse
       ? { id: reuse.orderId }
@@ -1619,6 +1634,7 @@ function continueToCheckout() {
     <Form
       v-else
       :key="checkoutFormKey"
+      v-slot="$form"
       class="checkout-form"
       :initial-values="checkoutInitial"
       :resolver="checkoutResolver"
@@ -1801,16 +1817,14 @@ function continueToCheckout() {
                 <small>Next time, checkout fills it in. You can change it from your account.</small>
               </span>
             </label>
-            <div class="checkout-delivery-option">
-              <span class="icon-tile icon-tile--small" aria-hidden="true">
-                <i class="pi pi-truck"></i>
-              </span>
-              <span class="checkout-delivery-copy">
-                <strong>Tracked return delivery</strong>
-                <small>Dispatch estimate follows card inspection.</small>
-              </span>
-              <strong class="price-text">{{ formatMoney(cart.delivery.value) }}</strong>
-            </div>
+            <DeliveryQuoteOption
+              v-model:quote="shippingQuote"
+              :address="$form.address?.value"
+              :city="$form.city?.value"
+              :postcode="$form.postcode?.value"
+              :country="$form.country?.value"
+              :estimate="cart.delivery.value"
+            />
           </section>
           <FormField v-slot="$field" name="acknowledgement">
             <div class="info-card acknowledgment checkout-acknowledgment">
@@ -1869,8 +1883,7 @@ function continueToCheckout() {
               <span>Subtotal</span><strong>{{ formatMoney(cart.subtotal.value) }}</strong>
             </div>
             <div class="summary-row">
-              <span>Tracked return delivery</span
-              ><strong>{{ formatMoney(cart.delivery.value) }}</strong>
+              <span>Tracked return delivery</span><strong>{{ formatMoney(deliveryFee) }}</strong>
             </div>
             <div class="summary-total">
               <strong>Total</strong><strong>{{ formatMoney(total) }}</strong>

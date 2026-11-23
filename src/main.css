@@ -10739,3 +10739,128 @@ h1.notice-panel-title {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Shipping (ops job page) */
+.ops-shipping.info-card {
+  display: grid;
+  gap: 10px;
+}
+
+.ops-shipping h2 {
+  margin: 0;
+}
+
+.ops-shipping .summary-row strong {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.ops-shipping-tracking {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.ops-shipping-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 4px;
+}
+
+.ops-shipping-print.p-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.ops-shipping-buy.p-button {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.ops-shipping .settings-note,
+.ops-shipping .settings-hint {
+  margin: 0;
+}
+
+.checkout-delivery-option.is-checking .checkout-delivery-copy small {
+  opacity: 0.7;
+}
+
+/* Shipping settings (Products page) */
+.products-shipping.info-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.products-shipping-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.products-shipping-head h2 {
+  margin: 0;
+}
+
+.products-shipping-facts dd {
+  overflow-wrap: anywhere;
+}
+
+.products-shipping-facts dd small {
+  color: var(--kedak-secondary);
+}
+
+.products-shipping .settings-note {
+  margin: 0;
+}
+
+.products-shipping-form {
+  display: grid;
+  gap: 12px;
+}
+
+.products-shipping-form .p-inputtext,
+.products-shipping-form .kedak-select {
+  width: 100%;
+}
+
+.products-shipping-group {
+  margin: 6px 0 0;
+  color: var(--kedak-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 760px) {
+  .products-shipping-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .products-shipping-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .products-shipping-head .settings-badge {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .products-shipping-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .products-shipping-head .kedak-action-button {
+    justify-self: end;
+  }
+}

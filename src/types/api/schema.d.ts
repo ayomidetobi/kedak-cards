@@ -683,6 +683,8 @@ export interface components {
             city: string;
             postcode: string;
             country: string;
+            /** @description ISO 3166-1 alpha-2; needed for live shipping rates. */
+            countryCode?: string;
         };
         PlaceOrderRequest: {
             contact: components["schemas"]["Contact"];
@@ -693,6 +695,8 @@ export interface components {
              * @constant
              */
             acknowledgement: true;
+            /** @description quoteToken from POST /shipping/quote; the delivery fee it shows is honoured for an hour. */
+            shippingQuote?: string;
         };
         /**
          * @description KD- followed by 4 to 8 digits. References start at 4 digits and grow only when a length is nearly used up, so existing references stay valid.

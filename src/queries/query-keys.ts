@@ -1,3 +1,4 @@
+import type { ShippingQuoteAddress } from '../services/api/endpoints/shipping'
 import type { CardCategory, CardFinish } from '../types/card'
 import type { CartItemInput, OrderStatus, Policy } from '../types/api'
 import type { OpsOrderFilters } from '../services/api/endpoints/ops'
@@ -31,6 +32,9 @@ export const queryKeys = {
     all: () => ['cart'] as const,
     validation: (items: CartItemInput[]) => ['cart', 'validation', items] as const,
   },
+  shipping: {
+    quote: (address: ShippingQuoteAddress) => ['shipping', 'quote', address] as const,
+  },
   payments: {
     providers: (amountPence: number | null) => ['payments', 'providers', amountPence] as const,
   },
@@ -58,6 +62,7 @@ export const queryKeys = {
     user: (id: string) => ['ops', 'users', 'detail', id] as const,
     finishes: () => ['ops', 'catalog', 'finishes'] as const,
     addOns: () => ['ops', 'catalog', 'add-ons'] as const,
+    shippingSettings: () => ['ops', 'shipping', 'settings'] as const,
     artworkRoot: () => ['ops', 'catalog', 'artwork'] as const,
     artworkCategories: () => ['ops', 'catalog', 'artwork', 'categories'] as const,
     artwork: (filters: Omit<StaffArtworkFilters, 'cursor'>) =>

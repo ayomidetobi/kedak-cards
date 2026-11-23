@@ -1,3 +1,4 @@
+import type { OpsShipping } from './shipping'
 import { api } from '../client'
 import type {
   AdvanceStatusRequest,
@@ -56,6 +57,8 @@ export interface OpsOrderDetail {
   order: Order
   productionHistory: ProductionEvent[]
   delivery: OpsDelivery
+  /** Carrier service, label and tracking; null when the order used the flat delivery fee. */
+  shipping: OpsShipping | null
 }
 
 export async function listOpsOrders(filters: OpsOrderFilters = {}, signal?: AbortSignal) {

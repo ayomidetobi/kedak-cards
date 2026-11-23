@@ -10,6 +10,7 @@ import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
 import NoticePanel from '../components/NoticePanel.vue'
 import DeliveryCard from '../components/orders/DeliveryCard.vue'
+import ShippingCard from '../components/orders/ShippingCard.vue'
 import TextLink from '../components/TextLink.vue'
 import OpsCardSpec from '../components/orders/OpsCardSpec.vue'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
@@ -303,6 +304,14 @@ const trackingNumber = ref('')
 const note = ref('')
 const refundNote = ref('')
 const actionError = ref('')
+// A label bought in Ops already has the tracking number: use it for dispatch.
+watch(
+  () => jobQuery.data.value?.shipping?.trackingNumber,
+  (bought) => {
+    if (bought && !trackingNumber.value) trackingNumber.value = bought
+  },
+  { immediate: true },
+)
 watch(selectedOrderId, () => {
   trackingNumber.value = ''
   note.value = ''
@@ -857,6 +866,11 @@ function formatDateTime(value: string) {
           </section>
 
           <DeliveryCard :delivery="jobQuery.data.value?.delivery" />
+          <ShippingCard
+            :order-id="job.id"
+            :shipping="jobQuery.data.value?.shipping ?? null"
+            :charged="job.delivery"
+          />
           <section class="info-card ops-order-facts" aria-labelledby="ops-order-title">
             <h2 id="ops-order-title">Order</h2>
             <div class="summary-row">
