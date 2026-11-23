@@ -1219,6 +1219,11 @@ function continueToCheckout() {
                     <template v-if="item.customization.holderName">
                       · <span class="name-review">{{ item.customization.holderName }}</span>
                     </template>
+                    <template v-if="item.customization.contactless"> · Contactless</template>
+                  </p>
+                  <p v-if="item.customization.notes" class="cart-item-note">
+                    <i class="pi pi-comment" aria-hidden="true"></i>
+                    <span>{{ item.customization.notes }}</span>
                   </p>
                   <ul
                     v-if="
@@ -1854,6 +1859,7 @@ function continueToCheckout() {
                     <template v-if="item.customization?.holderName">
                       · {{ item.customization.holderName }}
                     </template>
+                    <template v-if="item.customization?.contactless"> · Contactless</template>
                   </small>
                 </span>
                 <strong>{{ formatMoney(itemSubtotal(item)) }}</strong>
@@ -2059,6 +2065,7 @@ function continueToCheckout() {
                       <small>
                         {{ line.designName || 'Your design' }}
                         <template v-if="line.holderName"> · {{ line.holderName }}</template>
+                        <template v-if="line.customization?.contactless"> · Contactless</template>
                       </small>
                       <small>{{ line.quantity }} × {{ formatMoney(line.unitPrice) }}</small>
                     </span>

@@ -255,6 +255,27 @@ export function useUpdateStaffFinish() {
   })
 }
 
+export function useStaffAddOns() {
+  return useQuery({
+    queryKey: queryKeys.ops.addOns(),
+    queryFn: ({ signal }) => productsApi.getStaffAddOns(signal),
+    staleTime: 30_000,
+  })
+}
+
+/** Saves the contactless price and refreshes the shop's copy so this browser sees it at once. */
+export function useUpdateStaffAddOns() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (contactlessAmount: number) => productsApi.updateStaffAddOns({ contactlessAmount }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.ops.addOns(), data)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.catalog.addOns() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cart.all() })
+    },
+  })
+}
+
 export function useDeleteStaffFinish() {
   const saved = useFinishesSaved()
   return useMutation({

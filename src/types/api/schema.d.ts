@@ -598,10 +598,22 @@ export interface components {
             artworkAssignment: components["schemas"]["ArtworkAssignment"];
             uploadOrientation: components["schemas"]["UploadOrientation"];
             uploadDisplay: components["schemas"]["UploadDisplay"];
+            /**
+             * @description Add contactless payment. Adds the store's contactless price to each card.
+             * @default false
+             */
+            contactless: boolean;
+            /**
+             * @description Optional extra instructions for the production team.
+             * @default
+             */
+            notes: string;
         };
         CardCustomization: components["schemas"]["CardCustomizationInput"] & {
             finish: components["schemas"]["CardFinish"];
             price: components["schemas"]["Money"];
+            /** @description Per-card contactless add-on included in price. Present only when contactless is true. */
+            contactlessPrice?: components["schemas"]["Money"];
             uploadedArtworks?: components["schemas"]["UploadedArtwork"][];
         };
         CompatibilityAnswers: {

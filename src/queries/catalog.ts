@@ -1,6 +1,6 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { getPolicy, listFinishes } from '../services/api/endpoints/catalog'
+import { getAddOns, getPolicy, listFinishes } from '../services/api/endpoints/catalog'
 import type { CardFinish } from '../types/card'
 import type { Finish, Policy } from '../types/api'
 import { setStoreCurrency } from '../utils/money'
@@ -60,12 +60,23 @@ export function useFinishCatalog() {
     inStockFinishes: computed(() => finishes.value.filter((item) => item.inStock)),
     lowestPrice: computed(() =>
       finishes.value.length
-        ? finishes.value.reduce((low, item) => (item.price.amount < low.amount ? item.price : low),
-            finishes.value[0]!.price)
+        ? finishes.value.reduce(
+            (low, item) => (item.price.amount < low.amount ? item.price : low),
+            finishes.value[0]!.price,
+          )
         : null,
     ),
     refetch: () => query.refetch(),
   }
+}
+
+/** Per-card price of optional extras (contactless), shown in the customiser and cart. */
+export function useAddOnsQuery() {
+  return useQuery({
+    queryKey: queryKeys.catalog.addOns(),
+    queryFn: ({ signal }) => getAddOns(signal),
+    staleTime: CATALOG_STALE_TIME,
+  })
 }
 
 export function usePolicyQuery(slug: MaybeRefOrGetter<Policy['slug']>) {

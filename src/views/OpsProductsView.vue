@@ -8,6 +8,7 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import ArtworkTile from '../components/ops/ArtworkTile.vue'
+import ContactlessPriceCard from '../components/ops/ContactlessPriceCard.vue'
 import CategoryChip from '../components/ops/CategoryChip.vue'
 import ProductFinishCard from '../components/ops/ProductFinishCard.vue'
 import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
@@ -474,6 +475,8 @@ const artworkLoadError = computed(() =>
             @click="openAddFinish"
           />
         </div>
+
+        <ContactlessPriceCard />
 
         <!-- Add finish -->
         <section v-if="finishList && addingFinish" class="info-card ops-panel products-add">

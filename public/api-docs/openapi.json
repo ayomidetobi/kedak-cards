@@ -688,7 +688,9 @@
           "uploadedArtworkIds": { "type": "array", "items": { "type": "string" }, "description": "Required when customizationMode is custom. For per-card assignment, exactly one per card." },
           "artworkAssignment": { "$ref": "#/components/schemas/ArtworkAssignment" },
           "uploadOrientation": { "$ref": "#/components/schemas/UploadOrientation" },
-          "uploadDisplay": { "$ref": "#/components/schemas/UploadDisplay" }
+          "uploadDisplay": { "$ref": "#/components/schemas/UploadDisplay" },
+          "contactless": { "type": "boolean", "default": false, "description": "Add contactless payment. Adds the store's contactless price to each card." },
+          "notes": { "type": "string", "maxLength": 500, "default": "", "description": "Optional extra instructions for the production team." }
         }
       },
       "CardCustomization": {
@@ -700,6 +702,7 @@
             "properties": {
               "finish": { "$ref": "#/components/schemas/CardFinish" },
               "price": { "$ref": "#/components/schemas/Money" },
+              "contactlessPrice": { "$ref": "#/components/schemas/Money", "description": "Per-card contactless add-on included in price. Present only when contactless is true." },
               "uploadedArtworks": { "type": "array", "items": { "$ref": "#/components/schemas/UploadedArtwork" } }
             }
           }

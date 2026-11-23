@@ -6,6 +6,7 @@ import { PLACEHOLDER_DESIGN } from '../../composables/useArtworkSelection'
 import { resolveApiUrl } from '../../config/env'
 import type { OrderLine } from '../../types/api'
 import type { CardDesign, UploadedArtwork } from '../../types/card'
+import { formatMoney } from '../../utils/money'
 
 /**
  * Production spec for one order line: a live preview of the card as the customer configured it,
@@ -26,7 +27,15 @@ const recap = computed(() => {
   if (!c) return 'Not customised'
   const artwork = c.customizationMode === 'custom' ? 'Customer upload' : props.line.designName
   const engraving = c.engravingStyle === 'monogram' ? 'Monogram' : 'Full name'
-  return [artwork, engraving, c.holderName || props.line.holderName].filter(Boolean).join(' · ')
+  return [
+    artwork,
+    engraving,
+    c.holderName || props.line.holderName,
+    c.contactless ? 'Contactless' : '',
+    c.notes ? 'Has notes' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 })
 
 const custom = computed(() => props.line.customization ?? null)
@@ -82,6 +91,12 @@ const facts = computed(() => {
   rows.push(
     { label: 'Engraving', value: c.engravingStyle === 'monogram' ? 'Monogram' : 'Full name' },
     { label: 'Holder name', value: c.holderName || props.line.holderName || '—' },
+    {
+      label: 'Contactless',
+      value: c.contactless
+        ? `Yes, fit antenna${c.contactlessPrice ? ` (${formatMoney(c.contactlessPrice)} per card)` : ''}`
+        : 'No',
+    },
   )
   return rows
 })
@@ -175,6 +190,10 @@ function uploadFilename(file: UploadedArtwork, position: number) {
             <dd>{{ fact.value }}</dd>
           </div>
         </dl>
+        <div v-if="custom?.notes" class="ops-spec-notes">
+          <p class="ops-files-title">Customer notes</p>
+          <blockquote>{{ custom.notes }}</blockquote>
+        </div>
       </div>
 
       <div v-if="isUpload && uploads.length" class="ops-files">

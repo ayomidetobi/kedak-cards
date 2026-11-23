@@ -255,6 +255,7 @@ function onCompleted() {
                   <small>
                     {{ line.designName }}
                     <template v-if="line.holderName"> · {{ line.holderName }}</template>
+                    <template v-if="line.customization?.contactless"> · Contactless</template>
                   </small>
                 </span>
                 <span class="order-item-price">

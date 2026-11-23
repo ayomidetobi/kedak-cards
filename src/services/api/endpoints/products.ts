@@ -88,6 +88,24 @@ export async function updateStaffFinish(name: CardFinish, payload: StaffFinishIn
   return data
 }
 
+/** Store-wide add-ons. Ops read; only administrators may change (`canEdit`). */
+export interface StaffAddOns {
+  contactless: { price: Money; /** Minor units per card. */ priceAmount: number }
+  currency: string
+  updatedAt: string | null
+  canEdit: boolean
+}
+
+export async function getStaffAddOns(signal?: AbortSignal) {
+  const { data } = await api.get<StaffAddOns>('/ops/catalog/add-ons', { signal })
+  return data
+}
+
+export async function updateStaffAddOns(payload: { contactlessAmount: number }) {
+  const { data } = await api.patch<StaffAddOns>('/ops/catalog/add-ons', payload)
+  return data
+}
+
 export async function deleteStaffFinish(name: CardFinish) {
   const { data } = await api.delete<StaffFinishList>(finishPath(name))
   return data

@@ -6,11 +6,12 @@ import { useToast } from 'primevue/usetoast'
 import StockBadge from '../StockBadge.vue'
 import TextLink from '../TextLink.vue'
 import { useArtworkSelection } from '../../composables/useArtworkSelection'
-import { useFinishCatalog } from '../../queries/catalog'
+import { useAddOnsQuery, useFinishCatalog } from '../../queries/catalog'
 import { errorMessage } from '../../services/api/errors'
 import { MAX_ITEM_QUANTITY } from '../../types/card'
 import { formatMoney } from '../../utils/money'
 import CardPreview from './CardPreview.vue'
+import CardExtras from './CardExtras.vue'
 import CardholderNameInput from './CardholderNameInput.vue'
 import DesignCategoryTabs from './DesignCategoryTabs.vue'
 import DesignGallery from './DesignGallery.vue'
@@ -22,6 +23,7 @@ import type { CustomizationMode } from '../../types/card'
 const customization = useCardCustomization()
 const artwork = useArtworkSelection()
 const catalog = useFinishCatalog()
+const addOns = useAddOnsQuery()
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
@@ -39,6 +41,14 @@ const category = computed({
 const customizationMode = computed({
   get: () => customization.store.customizationMode,
   set: (value: CustomizationMode) => setCustomizationMode(value),
+})
+const contactless = computed({
+  get: () => customization.store.contactless,
+  set: (value: boolean) => customization.store.setContactless(value),
+})
+const notes = computed({
+  get: () => customization.store.notes,
+  set: (value: string) => customization.store.setNotes(value),
 })
 const holderName = computed({
   get: () => customization.store.holderName,
@@ -98,9 +108,19 @@ const addToCartDisabledReason = computed(
     editError.value,
 )
 const canAddToCart = computed(() => !addToCartDisabledReason.value)
-const unitPrice = computed(() => catalog.price(customization.store.finish))
+const finishPrice = computed(() => catalog.price(customization.store.finish))
+const contactlessPrice = computed(() => addOns.data.value?.contactless.price ?? null)
+/** Finish price plus contactless when chosen (the server prices the cart the same way). */
+const unitPrice = computed(() => {
+  if (!finishPrice.value) return null
+  if (!customization.store.contactless) return finishPrice.value
+  if (!contactlessPrice.value) return null
+  return { ...finishPrice.value, amount: finishPrice.value.amount + contactlessPrice.value.amount }
+})
 const quantityTotal = computed(() =>
-  unitPrice.value ? unitPrice.value.amount * customization.store.cartQuantity : null,
+  unitPrice.value
+    ? { ...unitPrice.value, amount: unitPrice.value.amount * customization.store.cartQuantity }
+    : null,
 )
 const galleryError = computed(() =>
   artwork.error.value ? errorMessage(artwork.error.value, 'Designs couldn’t load.') : '',
@@ -295,11 +315,20 @@ watch(
           </p>
         </div>
         <CardholderNameInput v-model="holderName" />
+        <CardExtras
+          v-model:contactless="contactless"
+          v-model:notes="notes"
+          :price="contactlessPrice"
+        />
         <section class="price-card">
           <div class="price-heading">
             <span>Your conversion</span>
-            <strong v-if="unitPrice">{{ formatMoney(unitPrice) }}</strong>
+            <strong v-if="finishPrice">{{ formatMoney(finishPrice) }}</strong>
             <strong v-else class="price-pending" aria-label="Price loading">—</strong>
+          </div>
+          <div v-if="contactless" class="price-heading price-extra">
+            <span>Contactless</span>
+            <span>+{{ contactlessPrice ? formatMoney(contactlessPrice) : '—' }}</span>
           </div>
           <p>Per card. Name and engraving included. Return delivery calculated at checkout.</p>
           <div class="customizer-quantity-row">

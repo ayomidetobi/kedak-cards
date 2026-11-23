@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { PendingCheckout } from '../services/checkoutHandoff'
 import {
   MAX_ITEM_QUANTITY,
+  MAX_NOTES_LENGTH,
   type ArtworkAssignment,
   type CardCartItem,
   type CardCategory,
@@ -44,6 +45,8 @@ function hasSameCustomization(left: CardCustomization, right: CardCustomization)
     left.artworkAssignment === right.artworkAssignment &&
     left.uploadOrientation === right.uploadOrientation &&
     left.uploadDisplay === right.uploadDisplay &&
+    left.contactless === right.contactless &&
+    left.notes === right.notes &&
     (left.customizationMode === 'custom' ||
       (left.category === right.category && left.designId === right.designId)) &&
     left.uploadedArtworks.length === right.uploadedArtworks.length &&
@@ -73,6 +76,9 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
   const artworkAssignment = ref<ArtworkAssignment>('shared')
   const uploadOrientation = ref<UploadOrientation>('landscape')
   const uploadDisplay = ref<UploadDisplay>('default')
+  /** Contactless is on by default; the customer can opt out. */
+  const contactless = ref(true)
+  const notes = ref('')
   const compatibilityAnswers = ref<CompatibilityAnswers>({
     country: 'United Kingdom',
     network: 'Visa / Mastercard',
@@ -105,6 +111,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     artworkAssignment: artworkAssignment.value,
     uploadOrientation: uploadOrientation.value,
     uploadDisplay: uploadDisplay.value,
+    contactless: contactless.value,
+    notes: notes.value,
   }))
 
   function selectCategory(nextCategory: CardCategory) {
@@ -151,6 +159,14 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     uploadDisplay.value = display
   }
 
+  function setContactless(value: boolean) {
+    contactless.value = value
+  }
+
+  function setNotes(value: string) {
+    notes.value = value.slice(0, MAX_NOTES_LENGTH)
+  }
+
   function setFinish(nextFinish: CardFinish) {
     finish.value = nextFinish
   }
@@ -188,6 +204,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     artworkAssignment.value = 'shared'
     uploadOrientation.value = 'landscape'
     uploadDisplay.value = 'default'
+    contactless.value = true
+    notes.value = ''
   }
 
   function startNewCustomization(nextFinish: CardFinish) {
@@ -214,6 +232,9 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
       artworkAssignment.value = saved.artworkAssignment
       uploadOrientation.value = saved.uploadOrientation
       uploadDisplay.value = saved.uploadDisplay
+      // Items saved before contactless existed were priced without it.
+      contactless.value = saved.contactless ?? false
+      notes.value = saved.notes ?? ''
     }
     editingCartItemId.value = id
     return true
@@ -367,6 +388,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     artworkAssignment,
     uploadOrientation,
     uploadDisplay,
+    contactless,
+    notes,
     cartQuantity,
     selectCategory,
     ensureCategory,
@@ -378,6 +401,8 @@ export const useCardCustomizationStore = defineStore('cardCustomization', () => 
     setArtworkAssignment,
     setUploadOrientation,
     setUploadDisplay,
+    setContactless,
+    setNotes,
     setFinish,
     setCartQuantity,
     startNewCustomization,

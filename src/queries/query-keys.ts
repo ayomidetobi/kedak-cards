@@ -15,6 +15,7 @@ export const queryKeys = {
   catalog: {
     finishes: () => ['catalog', 'finishes'] as const,
     finish: (finish: CardFinish) => ['catalog', 'finishes', finish] as const,
+    addOns: () => ['catalog', 'add-ons'] as const,
   },
   artwork: {
     all: () => ['artwork'] as const,
@@ -27,6 +28,7 @@ export const queryKeys = {
     detail: (slug: Policy['slug']) => ['policies', slug] as const,
   },
   cart: {
+    all: () => ['cart'] as const,
     validation: (items: CartItemInput[]) => ['cart', 'validation', items] as const,
   },
   payments: {
@@ -55,6 +57,7 @@ export const queryKeys = {
       ['ops', 'users', 'list', filters] as const,
     user: (id: string) => ['ops', 'users', 'detail', id] as const,
     finishes: () => ['ops', 'catalog', 'finishes'] as const,
+    addOns: () => ['ops', 'catalog', 'add-ons'] as const,
     artworkRoot: () => ['ops', 'catalog', 'artwork'] as const,
     artworkCategories: () => ['ops', 'catalog', 'artwork', 'categories'] as const,
     artwork: (filters: Omit<StaffArtworkFilters, 'cursor'>) =>

@@ -17,6 +17,8 @@ export function toCartItemInput(item: CardCartItem): CartItemInput {
     artworkAssignment: saved.artworkAssignment,
     uploadOrientation: saved.uploadOrientation,
     uploadDisplay: saved.uploadDisplay,
+    contactless: saved.contactless ?? false,
+    notes: (saved.notes ?? '').trim(),
   }
   if (saved.customizationMode === 'preset') {
     customization.category = saved.category

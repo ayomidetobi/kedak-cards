@@ -51,12 +51,13 @@ function handlePopoverHide() {
 function itemDescription(item: CardCartItem) {
   const customization = item.customization
   if (!customization) return 'Design and cardholder details needed'
-  if (customization.customizationMode === 'custom') {
-    return `${customization.holderName} · Custom artwork`
-  }
-
-  const design = designs.value.get(customization.designId)
-  return `${customization.holderName} · ${design?.name ?? 'Pre-designed artwork'}`
+  const artwork =
+    customization.customizationMode === 'custom'
+      ? 'Custom artwork'
+      : (designs.value.get(customization.designId)?.name ?? 'Pre-designed artwork')
+  return [customization.holderName, artwork, customization.contactless ? 'Contactless' : '']
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function itemDesign(item: CardCartItem) {

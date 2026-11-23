@@ -10532,3 +10532,210 @@ h1.notice-panel-title {
 .auth-google-slot {
   color-scheme: light;
 }
+
+/* Contactless and notes (customiser extras, cart, ops) */
+.card-extras {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.card-extras .control-heading {
+  margin: 0;
+}
+
+/* The wifi icon turned on its side reads as the contactless wave */
+.card-extra-wave {
+  display: inline-block;
+  transform: rotate(90deg);
+}
+
+.card-extra-option .customization-mode-option-copy strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.card-extra-price {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.card-extra-option .p-checkbox-checked .p-checkbox-box {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.card-extra-note.settings-note {
+  flex-wrap: nowrap;
+  margin: 0;
+}
+
+.card-extra-notes {
+  display: grid;
+  gap: 6px;
+}
+
+.card-extra-notes .p-textarea {
+  width: 100%;
+  min-height: 88px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.price-card .price-heading.price-extra {
+  margin-top: -6px;
+  color: var(--kedak-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cart-product-details .cart-item-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--kedak-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.cart-item-note .pi {
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+.ops-spec-notes {
+  margin-top: 16px;
+}
+
+.ops-spec-notes blockquote {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--kedak-subtle);
+  color: var(--kedak-text);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.products-addon.info-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.products-addon h2 {
+  margin: 0;
+}
+
+.products-addon-copy .settings-hint {
+  margin: 4px 0 0;
+}
+
+.products-addon-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.products-addon-price {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.products-addon-price .products-price {
+  margin: 0;
+}
+
+.products-addon-price small {
+  color: var(--kedak-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.products-addon-lock.settings-note {
+  margin: 0;
+}
+
+.products-addon-form .checkout-float-label {
+  width: 180px;
+}
+
+.products-addon-form .upload-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .products-addon.info-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .products-addon-side {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+
+  .products-addon-price {
+    justify-items: start;
+  }
+
+  .products-addon-form .checkout-float-label {
+    flex: 1 1 160px;
+    width: auto;
+  }
+}
+
+/* "Add a note" reveal link in the customiser extras */
+.card-extra-add-note {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--kedak-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.card-extra-add-note .pi {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.card-extra-add-note.is-remove {
+  color: var(--kedak-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration-color: currentColor;
+}
+
+.card-extra-add-note.is-remove .pi {
+  color: currentColor;
+}
+
+.card-extra-add-note:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

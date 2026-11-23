@@ -46,7 +46,14 @@ export interface CardCustomization {
   artworkAssignment: ArtworkAssignment
   uploadOrientation: UploadOrientation
   uploadDisplay: UploadDisplay
+  /** Contactless payment add-on (priced per card by the server). */
+  contactless: boolean
+  /** Optional extra instructions for the production team. */
+  notes: string
 }
+
+/** Longest note the server accepts. */
+export const MAX_NOTES_LENGTH = 500
 
 export interface CardCartItem {
   id: string
