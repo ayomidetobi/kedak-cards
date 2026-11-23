@@ -6635,9 +6635,8 @@ a:focus-visible {
   justify-content: center;
 }
 
-.auth-google-slot iframe {
-  max-width: 100%;
-}
+/* No max-width on Google's iframe: it is 20px wider than the button and uses -10px margins;
+   capping it clipped the button's right edge. The button width itself matches the inputs. */
 
 /* Production job (/ops/quality-check): same layout language as the order page, for staff */
 .ops-job .ops-back {

@@ -87,9 +87,31 @@ export async function renderGoogleButton(
       if (response.credential) onCredential(response.credential)
     },
   })
+  draw(google, container, text)
+  watchWidth(container, () => draw(google, container, text))
+}
+
+/** Width the button may use: the parent's content box (inside its padding), like the inputs. */
+function availableWidth(container: HTMLElement) {
+  const parent = container.parentElement
+  if (!parent) return container.clientWidth || 320
+  const style = getComputedStyle(parent)
+  const inner =
+    parent.clientWidth -
+    parseFloat(style.paddingLeft || '0') -
+    parseFloat(style.paddingRight || '0')
+  return Math.round(inner) || container.clientWidth || 320
+}
+
+function draw(
+  google: GoogleIdentity,
+  container: HTMLElement,
+  text: 'continue_with' | 'signup_with',
+) {
   container.replaceChildren()
-  // Measure the available space on the parent: the slot itself may still be hidden (width 0).
-  const available = container.parentElement?.clientWidth || container.clientWidth || 320
+  // Google's button has a fixed pixel width (200–400): match the column the email field uses.
+  const available = availableWidth(container)
+  container.dataset.width = String(available)
   google.accounts.id.renderButton(container, {
     type: 'standard',
     theme: 'outline',
@@ -97,7 +119,25 @@ export async function renderGoogleButton(
     text,
     shape: 'rectangular',
     logo_alignment: 'center',
-    width: Math.min(400, Math.max(200, Math.round(available))), // Google's maximum is 400
+    width: Math.min(400, Math.max(200, available)), // Google's limits are 200–400
     locale: 'en-GB', // match the site, not the browser language
   })
+}
+
+const observed = new WeakSet<HTMLElement>()
+
+/** Re-draws the button when its column changes width (rotation, window resize). */
+function watchWidth(container: HTMLElement, redraw: () => void) {
+  const parent = container.parentElement
+  if (!parent || observed.has(container) || typeof ResizeObserver === 'undefined') return
+  observed.add(container)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  new ResizeObserver(() => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      if (!container.isConnected) return
+      const width = availableWidth(container)
+      if (Math.abs(width - Number(container.dataset.width || 0)) >= 8) redraw()
+    }, 150)
+  }).observe(parent)
 }
