@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useTheme } from '../composables/useTheme'
 import { useRoute, useRouter } from 'vue-router'
+import BrandMark from './BrandMark.vue'
 import CartQuickView from './CartQuickView.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -35,7 +36,8 @@ watch(
   <header class="site-header" :class="{ 'ops-header': route.path.startsWith('/ops') }">
     <div class="header-row">
       <RouterLink class="brand" :to="route.path.startsWith('/ops') ? '/ops' : '/'">
-        {{ route.path.startsWith('/ops') ? 'Kedak / Ops' : 'Kedak Card' }}
+        <BrandMark :size="30" />
+        <span>{{ route.path.startsWith('/ops') ? 'Kedak / Ops' : 'Kedak Card' }}</span>
       </RouterLink>
       <nav
         id="primary-nav"

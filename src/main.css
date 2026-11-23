@@ -10009,3 +10009,26 @@ button.ops-token {
   justify-content: center;
   margin-top: 12px;
 }
+
+/* Brand: Kedak mark (copper accent) beside the name */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand .brand-mark {
+  flex: none;
+  color: var(--accent);
+  transition: transform 200ms ease;
+}
+
+.brand:hover .brand-mark {
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand .brand-mark {
+    transition: none;
+  }
+}
