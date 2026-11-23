@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
+import { formatMoney } from '../../utils/money'
 defineProps<{ price: number }>()
 const emit = defineEmits<{ continue: [] }>()
 </script>
@@ -8,7 +9,7 @@ const emit = defineEmits<{ continue: [] }>()
   <div class="price-summary">
     <div>
       <span class="price-label">Card conversion</span>
-      <strong>£{{ price }}</strong>
+      <strong>{{ formatMoney(price * 100) }}</strong>
     </div>
     <Button
       size="small"

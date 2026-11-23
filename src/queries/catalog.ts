@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { getPolicy, listFinishes } from '../services/api/endpoints/catalog'
 import type { CardFinish } from '../types/card'
 import type { Finish, Policy } from '../types/api'
+import { setStoreCurrency } from '../utils/money'
 import { queryKeys } from './query-keys'
 
 /** Presentation-only swatch colours. Prices and stock always come from the API. */
@@ -18,7 +19,11 @@ export const CATALOG_STALE_TIME = 5 * 60_000
 export function finishesQueryOptions() {
   return {
     queryKey: queryKeys.catalog.finishes(),
-    queryFn: ({ signal }: { signal: AbortSignal }) => listFinishes(signal),
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const finishes = await listFinishes(signal)
+      setStoreCurrency(finishes[0]?.price.currency) // the server's configured store currency
+      return finishes
+    },
     staleTime: CATALOG_STALE_TIME,
   }
 }

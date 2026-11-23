@@ -4,7 +4,7 @@
     "title": "Kedak Card API",
     "version": "1.0.0-demo",
     "summary": "Backend API for the Kedak Card metal card conversion storefront.",
-    "description": "Demo contract for the API the Kedak Card frontend needs. It mirrors what the app implements today: accounts (email + Google), the finish catalog with stock, the artwork library, artwork uploads, the compatibility check, cart validation, checkout, guest and registered order management, cancellations, refunds, policies and staff operations.\n\n**Status:** design/demo. No server implements this yet — the frontend currently uses local preview stores (`src/services/auth.ts`, `src/stores/orders.ts`).\n\n**Payments:** Stripe is not connected. Orders are created with `payment.status = not-collected`; a payment step will be added later.\n\n**Money:** all amounts are integers in minor units (pence) with an ISO 4217 currency, e.g. `{ \"amount\": 14900, \"currency\": \"GBP\" }` = £149.00.\n\n**Errors:** every error uses RFC 9457 problem details (`application/problem+json`) with a stable machine-readable `code`.\n\n**Business rules (from `src/utils/orderPolicy.ts`):**\n- Cancel: allowed while the order is `awaiting-card`, `card-received` or `assessed` (before conversion). Full refund; a held original card is returned.\n- Refund: requested after confirmed delivery, within **21 days (3 weeks)**. Up to the order total, confirmed after the returned card is inspected.\n- Checkout: every item must be customised and its finish in stock.\n\nSecurity: never send or store PINs, CVVs or full card numbers.",
+    "description": "Demo contract for the API the Kedak Card frontend needs. It mirrors what the app implements today: accounts (email + Google), the finish catalog with stock, the artwork library, artwork uploads, the compatibility check, cart validation, checkout, guest and registered order management, cancellations, refunds, policies and staff operations.\n\n**Status:** design/demo. No server implements this yet — the frontend currently uses local preview stores (`src/services/auth.ts`, `src/stores/orders.ts`).\n\n**Payments:** Stripe is not connected. Orders are created with `payment.status = not-collected`; a payment step will be added later.\n\n**Money:** all amounts are integers in minor units (cents) with an ISO 4217 currency, e.g. `{ \"amount\": 14900, \"currency\": \"USD\" }` = $149.00.\n\n**Errors:** every error uses RFC 9457 problem details (`application/problem+json`) with a stable machine-readable `code`.\n\n**Business rules (from `src/utils/orderPolicy.ts`):**\n- Cancel: allowed while the order is `awaiting-card`, `card-received` or `assessed` (before conversion). Full refund; a held original card is returned.\n- Refund: requested after confirmed delivery, within **21 days (3 weeks)**. Up to the order total, confirmed after the returned card is inspected.\n- Checkout: every item must be customised and its finish in stock.\n\nSecurity: never send or store PINs, CVVs or full card numbers.",
     "contact": { "name": "Kedak Card engineering" },
     "license": { "name": "Proprietary" }
   },
@@ -130,10 +130,10 @@
                 "schema": { "type": "object", "required": ["data"], "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Finish" } } } },
                 "example": {
                   "data": [
-                    { "name": "Silver", "price": { "amount": 12900, "currency": "GBP" }, "inStock": true },
-                    { "name": "Black", "price": { "amount": 14900, "currency": "GBP" }, "inStock": true },
-                    { "name": "Gold", "price": { "amount": 17900, "currency": "GBP" }, "inStock": true },
-                    { "name": "Signature", "price": { "amount": 21900, "currency": "GBP" }, "inStock": false }
+                    { "name": "Silver", "price": { "amount": 12900, "currency": "USD" }, "inStock": true },
+                    { "name": "Black", "price": { "amount": 14900, "currency": "USD" }, "inStock": true },
+                    { "name": "Gold", "price": { "amount": 17900, "currency": "USD" }, "inStock": true },
+                    { "name": "Signature", "price": { "amount": 21900, "currency": "USD" }, "inStock": false }
                   ]
                 }
               }
@@ -283,12 +283,12 @@
                 "schema": { "$ref": "#/components/schemas/CartValidationResult" },
                 "example": {
                   "canCheckout": false,
-                  "subtotal": { "amount": 36800, "currency": "GBP" },
-                  "delivery": { "amount": 800, "currency": "GBP" },
-                  "total": { "amount": 37600, "currency": "GBP" },
+                  "subtotal": { "amount": 36800, "currency": "USD" },
+                  "delivery": { "amount": 800, "currency": "USD" },
+                  "total": { "amount": 37600, "currency": "USD" },
                   "items": [
-                    { "index": 0, "finish": "Black", "quantity": 1, "unitPrice": { "amount": 14900, "currency": "GBP" }, "issues": [] },
-                    { "index": 1, "finish": "Signature", "quantity": 1, "unitPrice": { "amount": 21900, "currency": "GBP" }, "issues": [ { "code": "finish_out_of_stock", "message": "Signature is out of stock. Switch to another finish or remove this item." } ] }
+                    { "index": 0, "finish": "Black", "quantity": 1, "unitPrice": { "amount": 14900, "currency": "USD" }, "issues": [] },
+                    { "index": 1, "finish": "Signature", "quantity": 1, "unitPrice": { "amount": 21900, "currency": "USD" }, "issues": [ { "code": "finish_out_of_stock", "message": "Signature is out of stock. Switch to another finish or remove this item." } ] }
                   ]
                 }
               }
@@ -542,7 +542,7 @@
           "content": {
             "application/json": {
               "schema": { "$ref": "#/components/schemas/RefundDecisionRequest" },
-              "example": { "action": "approve", "amount": { "amount": 13700, "currency": "GBP" }, "note": "Damage confirmed on inspection." }
+              "example": { "action": "approve", "amount": { "amount": 13700, "currency": "USD" }, "note": "Damage confirmed on inspection." }
             }
           }
         },
@@ -587,9 +587,9 @@
     "schemas": {
       "Money": {
         "type": "object",
-        "description": "Amount in minor units (pence).",
+        "description": "Amount in minor units (cents).",
         "required": ["amount", "currency"],
-        "properties": { "amount": { "type": "integer", "minimum": 0, "examples": [14900] }, "currency": { "type": "string", "enum": ["GBP"] } }
+        "properties": { "amount": { "type": "integer", "minimum": 0, "examples": [14900] }, "currency": { "type": "string", "minLength": 3, "maxLength": 3, "description": "ISO 4217 code; the store currency is configurable (default USD).", "examples": ["USD"] } }
       },
       "Problem": {
         "type": "object",
@@ -753,7 +753,7 @@
         "properties": {
           "canCheckout": { "type": "boolean", "description": "True only when every item is customised and in stock." },
           "subtotal": { "$ref": "#/components/schemas/Money" },
-          "delivery": { "$ref": "#/components/schemas/Money", "description": "Tracked return delivery (currently £8)." },
+          "delivery": { "$ref": "#/components/schemas/Money", "description": "Tracked return delivery (currently $8)." },
           "total": { "$ref": "#/components/schemas/Money" },
           "items": {
             "type": "array",
@@ -874,10 +874,10 @@
           "deliveredAt": null,
           "refundDeadline": null,
           "status": "awaiting-card",
-          "lines": [ { "finish": "Gold", "quantity": 1, "unitPrice": { "amount": 17900, "currency": "GBP" }, "holderName": "ALEX MORGAN", "designName": "Championship Trophy", "customization": null } ],
-          "subtotal": { "amount": 17900, "currency": "GBP" },
-          "delivery": { "amount": 800, "currency": "GBP" },
-          "total": { "amount": 18700, "currency": "GBP" },
+          "lines": [ { "finish": "Gold", "quantity": 1, "unitPrice": { "amount": 17900, "currency": "USD" }, "holderName": "ALEX MORGAN", "designName": "Championship Trophy", "customization": null } ],
+          "subtotal": { "amount": 17900, "currency": "USD" },
+          "delivery": { "amount": 800, "currency": "USD" },
+          "total": { "amount": 18700, "currency": "USD" },
           "payment": { "status": "not-collected", "provider": null }
         }
       },

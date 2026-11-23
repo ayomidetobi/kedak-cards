@@ -22,10 +22,10 @@ export function mockApi() {
 }
 
 export const finishesFixture: Finish[] = [
-  { name: 'Silver', price: { amount: 12900, currency: 'GBP' }, inStock: true },
-  { name: 'Black', price: { amount: 14900, currency: 'GBP' }, inStock: true },
-  { name: 'Gold', price: { amount: 17900, currency: 'GBP' }, inStock: true },
-  { name: 'Signature', price: { amount: 21900, currency: 'GBP' }, inStock: false },
+  { name: 'Silver', price: { amount: 12900, currency: 'USD' }, inStock: true },
+  { name: 'Black', price: { amount: 14900, currency: 'USD' }, inStock: true },
+  { name: 'Gold', price: { amount: 17900, currency: 'USD' }, inStock: true },
+  { name: 'Signature', price: { amount: 21900, currency: 'USD' }, inStock: false },
 ]
 
 const CATEGORIES: CardCategory[] = ['Sport', 'Cars', 'Anime', 'Love', 'Nature']
@@ -98,9 +98,9 @@ export function quoteCart(items: CartItemInput[], finishes: Finish[] = finishesF
   const subtotal = quoted.reduce((sum, item) => sum + item.unitPrice.amount * item.quantity, 0)
   const result: CartValidationResult = {
     canCheckout: quoted.every((item) => item.issues.length === 0),
-    subtotal: { amount: subtotal, currency: 'GBP' },
-    delivery: { amount: 800, currency: 'GBP' },
-    total: { amount: subtotal + 800, currency: 'GBP' },
+    subtotal: { amount: subtotal, currency: 'USD' },
+    delivery: { amount: 800, currency: 'USD' },
+    total: { amount: subtotal + 800, currency: 'USD' },
     items: quoted,
   }
   return result
@@ -126,15 +126,15 @@ export function orderFixture(overrides: Partial<Order> = {}): Order {
       {
         finish: 'Gold',
         quantity: 1,
-        unitPrice: { amount: 17900, currency: 'GBP' },
+        unitPrice: { amount: 17900, currency: 'USD' },
         holderName: 'ALEX MORGAN',
         designName: 'Championship Trophy',
         customization: null,
       },
     ],
-    subtotal: { amount: 17900, currency: 'GBP' },
-    delivery: { amount: 800, currency: 'GBP' },
-    total: { amount: 18700, currency: 'GBP' },
+    subtotal: { amount: 17900, currency: 'USD' },
+    delivery: { amount: 800, currency: 'USD' },
+    total: { amount: 18700, currency: 'USD' },
     payment: { status: 'not-collected', provider: null },
     ...overrides,
   }

@@ -2,7 +2,7 @@
 import { computed, useId, watch } from 'vue'
 import { paymentProviders, type PaymentProviderId } from '../../data/paymentProviders'
 import type { AvailablePaymentProvider } from '../../services/api/endpoints/payments'
-import { formatCharged } from '../../utils/money'
+import { formatCharged, storeCurrency } from '../../utils/money'
 
 /**
  * Payment method choice (Stripe or Paystack) as two compact radio cards. Only providers the
@@ -59,7 +59,8 @@ watch(
         </span>
         <span class="payment-option-amount">
           <template v-if="option.live?.estimate">
-            ≈ {{ formatCharged(option.live.estimate) }}
+            <template v-if="option.live.estimate.currency !== storeCurrency">≈ </template>
+            {{ formatCharged(option.live.estimate) }}
           </template>
           <template v-else-if="option.live">{{ option.live.currency }}</template>
           <template v-else-if="!loading">Unavailable</template>

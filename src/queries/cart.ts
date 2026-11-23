@@ -52,7 +52,7 @@ export function useCartValidation() {
 
   function lineTotal(itemId: string) {
     const quoted = itemResults.value.get(itemId)
-    return quoted ? { amount: quoted.unitPrice.amount * quoted.quantity, currency: 'GBP' as const } : null
+    return quoted ? { amount: quoted.unitPrice.amount * quoted.quantity, currency: quoted.unitPrice.currency } : null
   }
 
   const canCheckout = computed(

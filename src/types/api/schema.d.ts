@@ -457,12 +457,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description Amount in minor units (pence). */
+        /** @description Amount in minor units (cents). */
         Money: {
             /** @example 14900 */
             amount: number;
-            /** @enum {string} */
-            currency: "GBP";
+            /**
+             * @description ISO 4217 code; the store currency is configurable (default USD).
+             * @example USD
+             */
+            currency: string;
         };
         /** @description RFC 9457 problem details. */
         Problem: {
@@ -638,7 +641,7 @@ export interface components {
             /** @description True only when every item is customised and in stock. */
             canCheckout: boolean;
             subtotal: components["schemas"]["Money"];
-            /** @description Tracked return delivery (currently £8). */
+            /** @description Tracked return delivery (currently $8). */
             delivery: components["schemas"]["Money"];
             total: components["schemas"]["Money"];
             items: {
@@ -753,7 +756,7 @@ export interface components {
          *           "quantity": 1,
          *           "unitPrice": {
          *             "amount": 17900,
-         *             "currency": "GBP"
+         *             "currency": "USD"
          *           },
          *           "holderName": "ALEX MORGAN",
          *           "designName": "Championship Trophy",
@@ -762,15 +765,15 @@ export interface components {
          *       ],
          *       "subtotal": {
          *         "amount": 17900,
-         *         "currency": "GBP"
+         *         "currency": "USD"
          *       },
          *       "delivery": {
          *         "amount": 800,
-         *         "currency": "GBP"
+         *         "currency": "USD"
          *       },
          *       "total": {
          *         "amount": 18700,
-         *         "currency": "GBP"
+         *         "currency": "USD"
          *       },
          *       "payment": {
          *         "status": "not-collected",
@@ -1283,7 +1286,7 @@ export interface operations {
                      *           "name": "Silver",
                      *           "price": {
                      *             "amount": 12900,
-                     *             "currency": "GBP"
+                     *             "currency": "USD"
                      *           },
                      *           "inStock": true
                      *         },
@@ -1291,7 +1294,7 @@ export interface operations {
                      *           "name": "Black",
                      *           "price": {
                      *             "amount": 14900,
-                     *             "currency": "GBP"
+                     *             "currency": "USD"
                      *           },
                      *           "inStock": true
                      *         },
@@ -1299,7 +1302,7 @@ export interface operations {
                      *           "name": "Gold",
                      *           "price": {
                      *             "amount": 17900,
-                     *             "currency": "GBP"
+                     *             "currency": "USD"
                      *           },
                      *           "inStock": true
                      *         },
@@ -1307,7 +1310,7 @@ export interface operations {
                      *           "name": "Signature",
                      *           "price": {
                      *             "amount": 21900,
-                     *             "currency": "GBP"
+                     *             "currency": "USD"
                      *           },
                      *           "inStock": false
                      *         }
@@ -1543,15 +1546,15 @@ export interface operations {
                      *       "canCheckout": false,
                      *       "subtotal": {
                      *         "amount": 36800,
-                     *         "currency": "GBP"
+                     *         "currency": "USD"
                      *       },
                      *       "delivery": {
                      *         "amount": 800,
-                     *         "currency": "GBP"
+                     *         "currency": "USD"
                      *       },
                      *       "total": {
                      *         "amount": 37600,
-                     *         "currency": "GBP"
+                     *         "currency": "USD"
                      *       },
                      *       "items": [
                      *         {
@@ -1560,7 +1563,7 @@ export interface operations {
                      *           "quantity": 1,
                      *           "unitPrice": {
                      *             "amount": 14900,
-                     *             "currency": "GBP"
+                     *             "currency": "USD"
                      *           },
                      *           "issues": []
                      *         },
@@ -1570,7 +1573,7 @@ export interface operations {
                      *           "quantity": 1,
                      *           "unitPrice": {
                      *             "amount": 21900,
-                     *             "currency": "GBP"
+                     *             "currency": "USD"
                      *           },
                      *           "issues": [
                      *             {
@@ -1965,7 +1968,7 @@ export interface operations {
                  *       "action": "approve",
                  *       "amount": {
                  *         "amount": 13700,
-                 *         "currency": "GBP"
+                 *         "currency": "USD"
                  *       },
                  *       "note": "Damage confirmed on inspection."
                  *     }

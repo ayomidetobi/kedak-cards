@@ -4,7 +4,7 @@ import type { Money, Order } from '../../../types/api'
 
 /**
  * Hosted-checkout payments (documented API additions, not yet in the published contract, so
- * the types are declared here). The API converts the GBP total to the provider's currency
+ * the types are declared here). The API converts the USD total to the provider's currency
  * (Stripe: USD, Paystack: NGN) at a locked rate; payment is confirmed only by the provider.
  */
 export interface ChargedMoney {
