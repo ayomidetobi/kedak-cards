@@ -39,9 +39,23 @@ export interface ProductionEvent {
  * GET /ops/orders/{orderId}: a documented backend addition (not yet in the published contract,
  * so the type is declared here rather than generated).
  */
+/** Where the finished card goes (staff only; also for guest orders). */
+export interface OpsDelivery {
+  name: string
+  email: string
+  phone: { countryCode: string; number: string }
+  address: string
+  city: string
+  postcode: string
+  country: string
+  /** Ready to paste into a courier form or label. */
+  label: string
+}
+
 export interface OpsOrderDetail {
   order: Order
   productionHistory: ProductionEvent[]
+  delivery: OpsDelivery
 }
 
 export async function listOpsOrders(filters: OpsOrderFilters = {}, signal?: AbortSignal) {

@@ -40,6 +40,7 @@ export const queryKeys = {
   account: {
     all: () => ['account'] as const,
     orders: (status?: OrderStatus) => ['account', 'orders', status ?? 'all'] as const,
+    address: () => ['account', 'address'] as const,
   },
   ops: {
     all: () => ['ops'] as const,

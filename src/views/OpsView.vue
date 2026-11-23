@@ -9,6 +9,7 @@ import Skeleton from 'primevue/skeleton'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
 import NoticePanel from '../components/NoticePanel.vue'
+import DeliveryCard from '../components/orders/DeliveryCard.vue'
 import TextLink from '../components/TextLink.vue'
 import OpsCardSpec from '../components/orders/OpsCardSpec.vue'
 import OrderStatusBadge from '../components/orders/OrderStatusBadge.vue'
@@ -626,6 +627,7 @@ function formatDateTime(value: string) {
               <Skeleton width="70%" height="0.9rem" />
             </div>
           </section>
+          <DeliveryCard loading />
           <section class="info-card ops-order-facts">
             <h2>Order</h2>
             <div v-for="row in 4" :key="row" class="skeleton-row skeleton-gap">
@@ -854,6 +856,7 @@ function formatDateTime(value: string) {
             </ol>
           </section>
 
+          <DeliveryCard :delivery="jobQuery.data.value?.delivery" />
           <section class="info-card ops-order-facts" aria-labelledby="ops-order-title">
             <h2 id="ops-order-title">Order</h2>
             <div class="summary-row">

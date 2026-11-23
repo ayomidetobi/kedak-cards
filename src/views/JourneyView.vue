@@ -35,6 +35,8 @@ import NoticePanel from '../components/NoticePanel.vue'
 import TextLink from '../components/TextLink.vue'
 import OrderTimeline from '../components/orders/OrderTimeline.vue'
 import AccountOrderRow from '../components/orders/AccountOrderRow.vue'
+import SavedAddressCard from '../components/account/SavedAddressCard.vue'
+import { useSaveAddress, useSavedAddress } from '../queries/address'
 import SkeletonRows from '../components/skeletons/parts/SkeletonRows.vue'
 import SkeletonText from '../components/skeletons/parts/SkeletonText.vue'
 import StockBadge from '../components/StockBadge.vue'
@@ -367,6 +369,28 @@ const compatibilityInitial = {
 }
 
 // After a cancelled payment the details the customer typed are restored with their cart.
+// Signed-in customers: their saved delivery address pre-fills checkout.
+const savedAddressQuery = useSavedAddress()
+const saveAddress = useSaveAddress()
+const saveAddressAtCheckout = ref(true)
+const savedDetails = computed(() => {
+  const saved = savedAddressQuery.data.value
+  return saved
+    ? {
+        fullName: saved.fullName,
+        phoneCountry: saved.phone.countryCode,
+        phone: saved.phone.number,
+        address: saved.address,
+        city: saved.city,
+        postcode: saved.postcode,
+        country: saved.country,
+      }
+    : {}
+})
+// The form reads initial values once: re-create it when the saved address arrives.
+const checkoutFormKey = computed(() =>
+  savedAddressQuery.isSuccess.value ? 'with-saved-address' : 'blank',
+)
 const checkoutInitial = computed(() => ({
   email: auth.user?.email ?? '',
   fullName: auth.user?.name ?? '',
@@ -376,6 +400,7 @@ const checkoutInitial = computed(() => ({
   country: '',
   phoneCountry: 'GB',
   phone: '',
+  ...savedDetails.value,
   ...(store.pendingCheckout?.details ?? {}),
   acknowledgement: false,
 }))
@@ -773,6 +798,19 @@ async function submitCheckout(event: FormSubmitEvent) {
       : await placeOrder.mutateAsync({ payload, idempotencyKey: checkoutKey })
     if (!reuse) checkoutKey = newIdempotencyKey()
     store.setLastPlacedOrder(order.id)
+    if (auth.isSignedIn && saveAddressAtCheckout.value) {
+      // Best effort: the order is placed either way.
+      await saveAddress
+        .mutateAsync({
+          fullName: details.fullName,
+          phone: { countryCode: details.phoneCountry, number: details.phone },
+          address: details.address,
+          city: details.city,
+          postcode: details.postcode,
+          country: details.country,
+        })
+        .catch(() => undefined)
+    }
     if (selectedProvider.value) {
       paymentRedirect.value = { provider: selectedProvider.value.name, orderId: order.id }
       const pending = {
@@ -1575,6 +1613,7 @@ function continueToCheckout() {
     </NoticePanel>
     <Form
       v-else
+      :key="checkoutFormKey"
       class="checkout-form"
       :initial-values="checkoutInitial"
       :resolver="checkoutResolver"
@@ -1750,6 +1789,13 @@ function continueToCheckout() {
                 $field.error?.message
               }}</small>
             </FormField>
+            <label v-if="auth.isSignedIn" class="people-check checkout-save-address">
+              <input v-model="saveAddressAtCheckout" type="checkbox" />
+              <span>
+                <strong>Save this address to my account</strong>
+                <small>Next time, checkout fills it in. You can change it from your account.</small>
+              </span>
+            </label>
             <div class="checkout-delivery-option">
               <span class="icon-tile icon-tile--small" aria-hidden="true">
                 <i class="pi pi-truck"></i>
@@ -2357,6 +2403,8 @@ function continueToCheckout() {
             </template>
           </div>
         </section>
+
+        <SavedAddressCard />
 
         <nav class="info-card account-links" aria-labelledby="account-links-title">
           <h2 id="account-links-title">Shortcuts</h2>

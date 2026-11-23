@@ -9,30 +9,38 @@ export const compatibilitySchema = z.object({
   acknowledged: z.boolean().refine(Boolean, 'Please confirm you understand the conversion risks.'),
 })
 
+/** Recipient and delivery fields: shared by checkout and the account's saved address. */
+const deliveryFields = {
+  fullName: z.string().trim().min(2, 'Enter your full name.'),
+  address: z.string().trim().min(3, 'Enter your return address.'),
+  city: z.string().trim().min(2, 'Enter your city.'),
+  postcode: z.string().trim().min(3, 'Enter a valid postcode.'),
+  country: z.string().min(1, 'Choose a country.'),
+  phoneCountry: z
+    .string()
+    .min(1, 'Choose a country calling code.')
+    .refine(isSupportedPhoneCountry, 'Choose a valid country calling code.'),
+  phone: z.string().trim().min(1, 'Enter your phone number.'),
+}
+
+function checkPhone(
+  { phone, phoneCountry }: { phone: string; phoneCountry: string },
+  context: z.RefinementCtx,
+) {
+  if (phone && phoneCountry && !isValidPhoneNumberForCountry(phone, phoneCountry)) {
+    context.addIssue({ code: 'custom', path: ['phone'], message: 'Enter a valid phone number.' })
+  }
+}
+
 export const checkoutSchema = z
   .object({
     email: z.email('Enter a valid email address.'),
-    fullName: z.string().trim().min(2, 'Enter your full name.'),
-    address: z.string().trim().min(3, 'Enter your return address.'),
-    city: z.string().trim().min(2, 'Enter your city.'),
-    postcode: z.string().trim().min(3, 'Enter a valid postcode.'),
-    country: z.string().min(1, 'Choose a country.'),
-    phoneCountry: z
-      .string()
-      .min(1, 'Choose a country calling code.')
-      .refine(isSupportedPhoneCountry, 'Choose a valid country calling code.'),
-    phone: z.string().trim().min(1, 'Enter your phone number.'),
+    ...deliveryFields,
     acknowledgement: z.boolean().refine(Boolean, 'Please acknowledge the conversion terms.'),
   })
-  .superRefine(({ phone, phoneCountry }, context) => {
-    if (phone && phoneCountry && !isValidPhoneNumberForCountry(phone, phoneCountry)) {
-      context.addIssue({
-        code: 'custom',
-        path: ['phone'],
-        message: 'Enter a valid phone number.',
-      })
-    }
-  })
+  .superRefine(checkPhone)
+
+export const savedAddressSchema = z.object(deliveryFields).superRefine(checkPhone)
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email address.'),

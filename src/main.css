@@ -10288,3 +10288,139 @@ h1.notice-panel-title {
 .p-button .p-button-loading-icon > * {
   display: none;
 }
+
+/* Account: saved delivery address */
+.account-address.info-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+
+.account-address-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-address-head h2 {
+  margin: 0;
+}
+
+.account-address-lines {
+  display: grid;
+  gap: 3px;
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.account-address-lines strong {
+  font-size: 15px;
+}
+
+.account-address-phone-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--kedak-secondary);
+}
+
+.account-address-phone-line .pi {
+  font-size: 12px;
+}
+
+.account-address-note {
+  margin: 0;
+}
+
+.account-address-form {
+  display: grid;
+  gap: 12px;
+}
+
+.account-address-form .p-inputtext,
+.account-address-form .p-select {
+  width: 100%;
+}
+
+.account-address-phone,
+.account-address-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.account-address-empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.account-address-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 420px) {
+  .account-address-phone,
+  .account-address-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+.people-check.checkout-save-address {
+  margin: 4px 0 8px;
+}
+
+/* Ops job: where the card is delivered */
+.ops-delivery.info-card {
+  display: grid;
+  gap: 12px;
+}
+
+.ops-delivery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ops-delivery-head h2 {
+  margin: 0;
+}
+
+.ops-delivery-contact {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--kedak-border);
+  font-size: 13px;
+}
+
+.ops-delivery-contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kedak-text);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.ops-delivery-contact a:hover {
+  color: var(--accent-text);
+}
+
+.ops-delivery-contact .pi {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.account-address > .kedak-action-button,
+.account-address-form > .kedak-action-button {
+  justify-self: start;
+}
