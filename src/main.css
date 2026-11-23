@@ -10424,3 +10424,111 @@ h1.notice-panel-title {
 .account-address-form > .kedak-action-button {
   justify-self: start;
 }
+
+/* Login / sign-up side panel: stacked finishes, intro, benefit rows, security notice */
+.auth-aside {
+  gap: 22px;
+}
+
+.auth-aside-cards {
+  position: relative;
+  width: min(100%, 300px);
+  aspect-ratio: 1.586 / 1;
+  margin: 18px auto 30px;
+}
+
+/* Soft copper glow behind the cards */
+.auth-aside-cards::before {
+  content: '';
+  position: absolute;
+  inset: -12% -16%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    transparent
+  );
+  filter: blur(6px);
+}
+
+.auth-aside-card {
+  position: absolute;
+  inset: 0;
+  transition: transform 300ms ease;
+}
+
+.auth-aside-card .metal-card {
+  max-width: none;
+}
+
+.auth-aside-card.is-back {
+  transform: translate(9%, -12%) rotate(7deg) scale(0.9);
+  opacity: 0.95;
+}
+
+.auth-aside-card.is-front {
+  transform: translate(-4%, 6%) rotate(-4deg);
+}
+
+.auth-aside-card.is-front .metal-card {
+  box-shadow: 0 18px 40px rgba(17, 17, 19, 0.22);
+}
+
+.auth-aside-card.is-back .metal-card {
+  box-shadow: 0 10px 24px rgba(17, 17, 19, 0.14);
+}
+
+.auth-aside:hover .auth-aside-card.is-back {
+  transform: translate(12%, -15%) rotate(9deg) scale(0.9);
+}
+
+.auth-aside-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-aside-intro {
+  margin: 0;
+  color: var(--kedak-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.auth-benefits {
+  gap: 0;
+}
+
+.auth-benefits li {
+  padding: 14px 0;
+  border-top: 1px solid var(--kedak-border);
+}
+
+.auth-benefits li:last-child {
+  border-bottom: 1px solid var(--kedak-border);
+}
+
+.auth-security {
+  margin-top: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--kedak-message-info-border);
+  border-radius: 12px;
+  background: var(--kedak-message-info-background);
+  color: var(--kedak-message-info-text);
+}
+
+@media (min-width: 900px) {
+  .auth-layout {
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-aside-card {
+    transition: none;
+  }
+}
+
+/* Google's button iframe is light-themed: match it so dark mode doesn't paint a white box */
+.auth-google-slot {
+  color-scheme: light;
+}

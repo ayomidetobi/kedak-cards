@@ -344,17 +344,35 @@ function passwordValue(value: unknown) {
       </section>
 
       <aside class="auth-aside" aria-labelledby="auth-aside-title">
-        <div class="auth-aside-card" aria-hidden="true">
-          <CardPreview
-            :design="previewDesign"
-            finish="Black"
-            engraving-style="name"
-            holder-name="ALEX MORGAN"
-            :uploaded-artwork="null"
-            :show-design-mark="false"
-          />
+        <!-- Two finishes, stacked: shows the product at its real proportions -->
+        <div class="auth-aside-cards" aria-hidden="true">
+          <div class="auth-aside-card is-back">
+            <CardPreview
+              :design="previewDesign"
+              finish="Gold"
+              engraving-style="name"
+              holder-name="SAM RIVERS"
+              :uploaded-artwork="null"
+              :show-design-mark="false"
+            />
+          </div>
+          <div class="auth-aside-card is-front">
+            <CardPreview
+              :design="previewDesign"
+              finish="Black"
+              engraving-style="name"
+              holder-name="ALEX MORGAN"
+              :uploaded-artwork="null"
+              :show-design-mark="false"
+            />
+          </div>
         </div>
-        <h2 id="auth-aside-title" class="auth-aside-title">Everything in one place.</h2>
+
+        <div class="auth-aside-copy">
+          <h2 id="auth-aside-title" class="auth-aside-title">Everything in one place.</h2>
+          <p class="auth-aside-intro">One account for every card you convert with Kedak.</p>
+        </div>
+
         <ul class="auth-benefits">
           <li v-for="benefit in benefits" :key="benefit.title">
             <span class="icon-tile icon-tile--small" aria-hidden="true">
@@ -366,6 +384,7 @@ function passwordValue(value: unknown) {
             </span>
           </li>
         </ul>
+
         <p class="auth-security">
           <i class="pi pi-lock" aria-hidden="true"></i>
           <span>
