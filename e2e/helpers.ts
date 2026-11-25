@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:8001/api/v1'
-export const DEMO_PASSWORD = '***REMOVED***'
+/** The seeded demo accounts' password: E2E_DEMO_PASSWORD (from .env.e2e.local, never committed). */
+export const DEMO_PASSWORD = process.env.E2E_DEMO_PASSWORD ?? ''
+if (!DEMO_PASSWORD) {
+  throw new Error(
+    'Set E2E_DEMO_PASSWORD (in .env.e2e.local) to the API DEMO_PASSWORD used by seed_demo_data.',
+  )
+}
 export const DEMO_CUSTOMER = 'alex.morgan@example.com'
 export const OPS_USER = 'ops.demo@example.com'
 
@@ -13,7 +19,12 @@ export function uniqueEmail(prefix: string) {
   return `${prefix}.${Date.now()}.${Math.floor(Math.random() * 1e5)}@example.com`
 }
 
-export async function logIn(page: Page, email: string, password = DEMO_PASSWORD, redirect = '/account') {
+export async function logIn(
+  page: Page,
+  email: string,
+  password = DEMO_PASSWORD,
+  redirect = '/account',
+) {
   await page.goto(`/login?redirect=${encodeURIComponent(redirect)}`)
   await page.locator('#login-email').fill(email)
   await page.locator('#login-password').fill(password)
@@ -75,7 +86,11 @@ export function latestEmailLink(pattern: RegExp): string | null {
   return matches.length ? matches[matches.length - 1]![0] : null
 }
 
-export async function apiLogin(request: APIRequestContext, email: string, password = DEMO_PASSWORD) {
+export async function apiLogin(
+  request: APIRequestContext,
+  email: string,
+  password = DEMO_PASSWORD,
+) {
   const response = await request.post(`${API_URL}/auth/login`, { data: { email, password } })
   expect(response.ok()).toBeTruthy()
   return response

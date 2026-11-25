@@ -1,4 +1,13 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
+
+// Local secrets for e2e (gitignored): E2E_DEMO_PASSWORD=... in .env.e2e.local. The shell wins.
+if (existsSync('.env.e2e.local')) {
+  for (const line of readFileSync('.env.e2e.local', 'utf8').split(/\r?\n/)) {
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line)
+    if (match && process.env[match[1]!] === undefined) process.env[match[1]!] = match[2]
+  }
+}
 
 /**
  * End-to-end tests against a REAL frontend + Django API (no mocks).
