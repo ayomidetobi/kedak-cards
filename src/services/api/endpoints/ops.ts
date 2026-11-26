@@ -53,12 +53,19 @@ export interface OpsDelivery {
   label: string
 }
 
+/** Payment reminder emails sent while the order was unpaid (at most 2; staff only). */
+export interface OpsPaymentReminders {
+  sent: number
+  lastSentAt: string | null
+}
+
 export interface OpsOrderDetail {
   order: Order
   productionHistory: ProductionEvent[]
   delivery: OpsDelivery
   /** Carrier service, label and tracking; null when the order used the flat delivery fee. */
   shipping: OpsShipping | null
+  paymentReminders?: OpsPaymentReminders
 }
 
 export async function listOpsOrders(filters: OpsOrderFilters = {}, signal?: AbortSignal) {

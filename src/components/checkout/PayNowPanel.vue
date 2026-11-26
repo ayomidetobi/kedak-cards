@@ -34,8 +34,8 @@ function pay() {
   >
     <h2 id="pay-now-title">Complete your payment</h2>
     <p class="muted-copy">
-      This order hasn’t been paid yet. Pay {{ formatMoney(order.total) }} to confirm it; unpaid
-      orders are cancelled automatically after 24 hours.
+      This order hasn’t been paid yet. Pay {{ formatMoney(order.total) }} to confirm it. If you
+      can’t pay now, we’ll keep your order for 30 days and send you a reminder.
     </p>
     <PaymentMethodPicker
       v-model="provider"

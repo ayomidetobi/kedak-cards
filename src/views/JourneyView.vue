@@ -812,8 +812,8 @@ async function submitCheckout(event: FormSubmitEvent) {
   }
   try {
     // Checking out again after a cancelled payment, unchanged: pay for the order already
-    // created instead of placing a duplicate. Any change places a new order (the old unpaid one
-    // is cancelled automatically after UNPAID_ORDER_TTL_HOURS).
+    // created instead of placing a duplicate. Any change places a new order (the API sends no
+    // payment reminders for the old unpaid one and closes it quietly after 30 days).
     // The quote token is re-issued on every quote, so it isn't part of "unchanged".
     const signature = JSON.stringify({ ...payload, shippingQuote: undefined })
     const reuse = store.pendingCheckout?.signature === signature ? store.pendingCheckout : null

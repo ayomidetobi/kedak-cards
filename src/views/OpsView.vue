@@ -26,6 +26,7 @@ import type { AdvanceableStatus, OrderStatus, RefundState } from '../types/api'
 import { formatMoney } from '../utils/money'
 import { formatOrderDate } from '../utils/orderPolicy'
 import { orderStatusMeta } from '../utils/orderStatus'
+import { paymentRemindersLabel } from '../utils/paymentReminders'
 
 /**
  * Staff workbench (/ops) and production job view (/ops/quality-check?order=KD-…).
@@ -284,6 +285,13 @@ const refundTitle = computed(() => {
     default:
       return 'Refund pending'
   }
+})
+// Shown while the order is unpaid, or once a reminder went out.
+const paymentReminders = computed(() => {
+  const reminders = jobQuery.data.value?.paymentReminders
+  if (!reminders || !job.value) return ''
+  if (job.value.payment.status !== 'not-collected' && reminders.sent < 1) return ''
+  return paymentRemindersLabel(reminders)
 })
 const paymentLabel = computed(() => {
   const payment = job.value?.payment
@@ -884,6 +892,9 @@ function formatDateTime(value: string) {
               <strong :class="job.payment.status === 'paid' ? 'ops-paid' : 'ops-unpaid'">
                 {{ paymentLabel }}
               </strong>
+            </div>
+            <div v-if="paymentReminders" class="summary-row">
+              <span>Payment reminders</span><strong>{{ paymentReminders }}</strong>
             </div>
             <div class="summary-row">
               <span>Total</span><strong>{{ formatMoney(job.total) }}</strong>
